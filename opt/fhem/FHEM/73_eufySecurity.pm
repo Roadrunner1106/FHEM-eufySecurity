@@ -87,7 +87,8 @@ my %ParamKey = (
 );
 
 # Base URL for Web-API
-my $BaseURL = 'https://mysecurity.eufylife.com/apieu/v1/';
+#my $BaseURL = 'https://mysecurity.eufylife.com/apieu/v1/';
+my $BaseURL = 'https://security-app-eu.eufylife.com/v1/';
 
 # eufySecurity Modulfunktionen
 
@@ -97,6 +98,7 @@ sub eufySecurity_Initialize($) {
     $hash->{DefFn}    = "eufySecurity_Define";
     $hash->{UndefFn}  = "eufySecurity_Undef";
     $hash->{DeleteFn} = "eufySecurity_Delete";
+    $hash->{RenameFn} = "eufySecurity_Rename";
     $hash->{SetFn}    = "eufySecurity_Set";
     $hash->{GetFn}    = "eufySecurity_Get";
 
@@ -106,7 +108,6 @@ sub eufySecurity_Initialize($) {
     #$hash->{ReadFn}               = "eufySecurity_Read";
     #$hash->{ReadyFn}              = "eufySecurity_Ready";
     #$hash->{NotifyFn}             = "eufySecurity_Notify";
-    #$hash->{RenameFn}             = "eufySecurity_Rename";
     #$hash->{ShutdownFn}           = "eufySecurity_Shutdown";
     #$hash->{DelayedShutdownFn}    = "eufySecurity_ DelayedShutdown";rmat
 
@@ -185,11 +186,25 @@ sub eufySecurity_Delete ($$) {
     my $hash = shift;
     my $name = shift;
 
-    #setKeyValue( $hash->{TYPE} . '_' . $name . '_passwd', undef );
+    # delete saved password
+    setKeyValue( $hash->{TYPE} . '_' . $name . '_password', undef );
 
     Log3 $name, 3, "eufySecurity $name (Delete) - deleted $name";
 
     return undef;
+}
+
+sub eufySecurity_Rename($$) {
+    my ( $new, $old ) = @_;
+
+    my $old_index = "eufySecurity_" . $old . "_password";
+    my $new_index = "eufySecurity_" . $new . "_password";
+
+    my ( $err, $old_pwd ) = getKeyValue($old_index);
+    return undef unless ( defined($old_pwd) );
+	
+    setKeyValue( $new_index, $old_pwd );
+    setKeyValue( $old_index, undef );
 }
 
 sub eufySecurity_Set($@) {
@@ -201,13 +216,10 @@ sub eufySecurity_Set($@) {
         my $mail = AttrVal( $name, 'mail', '' );
         return 'Für connect muss eine E-Mail im Attribut mail hinterlegt sein!' if $mail eq '';
 
-        return 'Für connect muss zuerst noch ein Passwort mit "set ' . $name . ' password GEHEIMESPASSWORT" hintelegt werden'
-          if $hash->{connection}{password} != 1;
-
-        my ( $error, $pw ) = getKeyValue( $name . '_password' );
-
+        my ( $error, $pw ) = getKeyValue( $hash->{TYPE} . "_" . $name . '_password' );
         if ( defined $error ) {
-            return 'Fehler beim lesen des Passwortes. error: $error';
+            Log3 $name, 3, "eufySecurity $name (Get) getKeyValue error: $error";
+            return 'Für connect muss zuerst noch ein Passwort mit "set ' . $name . ' password GEHEIMESPASSWORT" hintelegt werden';
         }
         else {
             Log3 $name, 3, "eufySecurity $name (Set) - connect to eufySecurity";
@@ -217,20 +229,21 @@ sub eufySecurity_Set($@) {
     elsif ( $cmd eq "password" ) {
         Log3 $name, 3, "eufySecurity $name (Set) - set password for eufySecurity";
         if ( $args[0] ne '' ) {
-            my $error = setKeyValue( $name . '_password', $args[0] );
+            my $error = setKeyValue( $hash->{TYPE} . "_" . $name . '_password', $args[0] );
             if ( $error ne '' ) {
                 return "Fehler beim speichern des Passwortes: error: $error";
             }
-            $hash->{connection}{password} = 1;
             return 'Passwort erfolgreich gesichert.';
         }
         else {
             return 'Kein. Passwort angegeben set <name> password meinpasswort angegeben';
         }
 
-    }
+    } elsif ( $cmd eq "del_password" ) {
+		setKeyValue("myEufy_password", undef);
+	}
     else {
-        return "Unknown argument $cmd, choose one of connect password";
+        return "Unknown argument $cmd, choose one of connect password del_password";
     }
 }
 
@@ -285,7 +298,7 @@ sub eufySecurity_Write ($$) {
         getHubs( $hash, '{"device_sn": "", "num": 100, "page": 0, "type": 0, "station_sn": "' . $sn . '"}' );
     }
     elsif ( $cmd eq "GET_DSK_KEY" ) {
-        getDskKey( $hash, '{"device_sn": "", "num": 100, "orderby": "", "page": 0, "station_sn": "' . $sn . '"}' );
+        getDskKey( $hash, '{"station_sns": ["' . $sn . '"]}' );
     }
     else {
         return "Unknown cmd $cmd";
@@ -317,7 +330,7 @@ sub connect2eufySecurity ($$@) {
     my ( $hash, $name, $mail, $pw ) = @_;
     my $param = {
 
-        url      => $BaseURL.'passport/login',
+        url      => $BaseURL . 'passport/login',
         header   => "Content-Type: application/json",
         data     => '{"email": "' . $mail . '", "password": "' . $pw . '"}',
         method   => "POST",
@@ -360,12 +373,14 @@ sub connect2eufySecurityCB($$$) {
             $hash->{connection}{state}            = "connect";
 
             readingsBeginUpdate($hash);
-			if ($json->{data}{domain} ne "") {
-				# change domain of BaseURL to given domain
-	#			$BaseURL = 'https://'.$json->{data}{domain}.'/apieu/v1/';
-				readingsBulkUpdate( $hash, 'eufySecurity-API-URL', $BaseURL );
-			}
-			
+            if ( $json->{data}{domain} ne "" ) {
+
+                # change domain of BaseURL to given domain
+                #			$BaseURL = 'https://'.$json->{data}{domain}.'/apieu/v1/';
+            }
+
+            readingsBulkUpdateIfChanged( $hash, 'eufySecurity-API-URL', $BaseURL, 1 );
+
             readingsBulkUpdate( $hash, 'token',         $hash->{connection}{auth_token} );
             readingsBulkUpdate( $hash, 'token_expires', FmtDateTime( $hash->{connection}{token_expires_at} ) );
             readingsBulkUpdate( $hash, 'state',         $hash->{connection}{state} );
@@ -389,7 +404,7 @@ sub getHubs($$) {
     Log3 $name, 3, "eufySecurity $name (getHubs) - data: " . $data;
 
     my $param = {
-        url      => $BaseURL.'app/get_hub_list',
+        url      => $BaseURL . 'app/get_hub_list',
         header   => "Content-Type: application/json\r\n" . "x-auth-token: " . $hash->{connection}{auth_token},
         data     => $data,
         method   => "POST",
@@ -482,7 +497,9 @@ sub getDskKey($$) {
     Log3 $name, 3, "eufySecurity $name (getDskKey) - data: " . $data;
 
     my $param = {
-        url      => $BaseURL . "app/equipment/get_dsk_keys",
+
+        #url      => $BaseURL . "app/equipment/get_dsk_keys",
+        url      => "https://security-app-eu.eufylife.com/v1/app/equipment/get_dsk_keys",
         header   => "Content-Type: application/json\r\n" . "x-auth-token: " . $hash->{connection}{auth_token},
         data     => $data,
         method   => "POST",
@@ -506,7 +523,7 @@ sub getDevices($$) {
     Log3 $name, 3, "eufySecurity $name (getDevices) - data: " . $data;
 
     my $param = {
-        url      => $BaseURL.'app/get_devs_list',
+        url      => $BaseURL . 'app/get_devs_list',
         header   => "Content-Type: application/json\r\n" . "x-auth-token: " . $hash->{connection}{auth_token},
         data     => $data,
         method   => "POST",
