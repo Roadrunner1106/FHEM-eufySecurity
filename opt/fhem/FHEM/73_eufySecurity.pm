@@ -197,14 +197,21 @@ sub eufySecurity_Delete ($$) {
 sub eufySecurity_Rename($$) {
     my ( $new, $old ) = @_;
 
-    my $old_index = "eufySecurity_" . $old . "_password";
-    my $new_index = "eufySecurity_" . $new . "_password";
+    Log 3, "eufySecurity $name (Rename) - old name:$old  new name:$new";
 
-    my ( $err, $old_pwd ) = getKeyValue($old_index);
-    return undef unless ( defined($old_pwd) );
-	
-    setKeyValue( $new_index, $old_pwd );
-    setKeyValue( $old_index, undef );
+    my $old_key     = "eufySecurity_" . $old . "_password";
+    my $new_key     = "eufySecurity_" . $new . "_password";
+    my $old_pwd_key = getUniqueId() . $old_key;
+    my $new_pwd_key = getUniqueId() . $new_key;
+
+    my ( $err, $enc_pwd ) = getKeyValue($old_key);
+
+    return undef unless(defined($enc_pwd));
+
+    my $pwd = decrypt_Password( $enc_pwd, $old_pwd_key );
+
+    setKeyValue( $new_key, encrypt_Password( $pwd, $new_pwd_key ) );
+    setKeyValue( $old_key, undef );
 }
 
 sub eufySecurity_Set($@) {
@@ -216,32 +223,38 @@ sub eufySecurity_Set($@) {
         my $mail = AttrVal( $name, 'mail', '' );
         return 'Für connect muss eine E-Mail im Attribut mail hinterlegt sein!' if $mail eq '';
 
-        my ( $error, $pw ) = getKeyValue( $hash->{TYPE} . "_" . $name . '_password' );
-        if ( defined $error ) {
-            Log3 $name, 3, "eufySecurity $name (Get) getKeyValue error: $error";
+        my $key     = $hash->{TYPE} . "_" . $name . '_password';
+        my $pwd_key = getUniqueId() . $key;
+        my ( $err, $enc_pwd ) = getKeyValue($key);
+
+        if ( defined $err ) {
+            Log3 $name, 3, "eufySecurity $name (Get) no password set or reading error";
             return 'Für connect muss zuerst noch ein Passwort mit "set ' . $name . ' password GEHEIMESPASSWORT" hintelegt werden';
         }
         else {
+            $pwd = decrypt_Password( $enc_pwd, $pwd_key );
             Log3 $name, 3, "eufySecurity $name (Set) - connect to eufySecurity";
-            connect2eufySecurity( $hash, $name, $mail, $pw );
+            connect2eufySecurity( $hash, $name, $mail, $pwd );
+
         }
     }
     elsif ( $cmd eq "password" ) {
         Log3 $name, 3, "eufySecurity $name (Set) - set password for eufySecurity";
         if ( $args[0] ne '' ) {
-            my $error = setKeyValue( $hash->{TYPE} . "_" . $name . '_password', $args[0] );
-            if ( $error ne '' ) {
-                return "Fehler beim speichern des Passwortes: error: $error";
-            }
-            return 'Passwort erfolgreich gesichert.';
+
+            my $key     = $hash->{TYPE} . "_" . $name . '_password';
+            my $pwd_key = getUniqueId() . $key;
+            return setKeyValue( $key, encrypt_Password( $args[0], $pw_key ) );
         }
         else {
             return 'Kein. Passwort angegeben set <name> password meinpasswort angegeben';
         }
 
-    } elsif ( $cmd eq "del_password" ) {
-		setKeyValue("myEufy_password", undef);
-	}
+    }
+    elsif ( $cmd eq "del_password" ) {
+        setKeyValue( $hash->{NAME} . "_password",                       undef );
+        setKeyValue( $hash->{TYPE} . "_" . $hash->{NAME} . "_password", undef );
+    }
     else {
         return "Unknown argument $cmd, choose one of connect password del_password";
     }
@@ -273,13 +286,17 @@ sub eufySecurity_Get($$@) {
         };
         HttpUtils_NonblockingGet($param);
     }
-    elsif ( $opt eq "DskKey" ) {
+    elsif ( $opt eq "DEBUG_DskKey" ) {
 
         getDskKey( $hash, '{"device_sn": "", "num": 100, "orderby": "", "page": 0, "station_sn": "T8010P2320270E8D"}' );
         getDskKey( $hash, '{"station_sns": "T8010P2320270E8D"}' );
     }
+    elsif ( $opt eq "DEBUG_RenameFn" ) {
+        return $hash->{RenameFn};
+        1;
+    }
     else {
-        return "Unknown argument $opt, choose one of Hubs Devices History DskKey";
+        return "Unknown argument $opt, choose one of Hubs Devices History DEBUG_DskKey DEBUG_RenameFn";
     }
 }
 
@@ -339,7 +356,6 @@ sub connect2eufySecurity ($$@) {
         callback => \&connect2eufySecurityCB
     };
     Log3 $name, 3, "eufySecurity $name (Login) - url: " . $param->{url};
-    Log3 $name, 3, "eufySecurity $name  (Login) - data: " . $param->{data};
 
     HttpUtils_NonblockingGet($param);
 }
@@ -358,7 +374,7 @@ sub connect2eufySecurityCB($$$) {
 
         ### Check if json can be parsed into hash
         eval {
-            $json = decode_json($data);
+            $json = decode_json(encode_utf8($data));
             1;
         } or do {
             ### Log Entry for debugging purposes
@@ -428,7 +444,7 @@ sub getHubsCB($$$) {
 
         ### Check if json can be parsed into hash
         eval {
-            $json = decode_json($data);
+            $json = decode_json(encode_utf8($data));
             1;
         } or do {
             ### Log Entry for debugging purposes
@@ -468,7 +484,7 @@ sub getHistoryCB($$$) {
 
         ### Check if json can be parsed into hash
         eval {
-            $json = decode_json($data);
+            $json = decode_json(encode_utf8($data));
             1;
         } or do {
             ### Log Entry for debugging purposes
@@ -550,7 +566,7 @@ sub getDevicesCB($$$) {
 
         ### Check if json can be parsed into hash
         eval {
-            $json = decode_json($data);
+            $json = decode_json(encode_utf8($data));
             1;
         } or do {
             ### Log Entry for debugging purposes
@@ -577,6 +593,48 @@ sub getDevicesCB($$$) {
     else {
         Log3 $name, 3, "eufySecurity (Callback getDevices) - HttpUtils Fehler $err";
     }
+}
+
+sub encrypt_Password($$) {
+    my ( $password, $key ) = @_;
+
+    return undef unless ( defined($password) );
+
+    if ( eval "use Digest::MD5;1" ) {
+        $key = Digest::MD5::md5_hex( unpack "H*", $key );
+        $key .= Digest::MD5::md5_hex($key);
+    }
+
+    my $enc_pwd = '';
+
+    for my $char ( split //, $password ) {
+        my $encode = chop($key);
+        $enc_pwd .= sprintf( "%.2x", ord($char) ^ ord($encode) );
+        $key = $encode . $key;
+    }
+
+    return $enc_pwd;
+}
+
+sub decrypt_Password($$) {
+    my ( $password, $key ) = @_;
+
+    return undef unless ( defined($password) );
+
+    if ( eval "use Digest::MD5;1" ) {
+        $key = Digest::MD5::md5_hex( unpack "H*", $key );
+        $key .= Digest::MD5::md5_hex($key);
+    }
+
+    my $dec_pwd = '';
+
+    for my $char ( map { pack( 'C', hex($_) ) } ( $password =~ /(..)/g ) ) {
+        my $decode = chop($key);
+        $dec_pwd .= chr( ord($char) ^ ord($decode) );
+        $key = $decode . $key;
+    }
+
+    return $dec_pwd;
 }
 
 # Eval-Rückgabewert für erfolgreiches
