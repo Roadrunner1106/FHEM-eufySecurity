@@ -50,12 +50,12 @@ print "Send LOCAL_LOOKUP Request\n";
 if ( lookupStation( $hash, $station_serial, $station_ip ) ) {
     print "found local station\n";
 
-	# connect to station
+    # connect to station
     if ( p2p_connect( $hash, $station_serial ) ) {
         print "connect to station $station_serial\n";
-
-        $hash->{P2P}{$station_serial}{sock}->close();
-        $hash->{P2P}{$station_serial}{recvsock}->close();
+		
+		# CMD_SET_ARMING   0 => away 1 => home, 2 => schedule, 63 => disarmed
+		sendCommandWithInt($hash, $station_serial, 1224, 1);
     }
 
 }
@@ -75,7 +75,7 @@ sub lookupStation($$$) {
         PeerPort  => $local_port,
         ReusAddr  => 1,
         ReusePort => 1,
-        Type      => SOCK_DGRAM,
+        #Type      => SOCK_DGRAM,
         Proto     => 'udp'
     );
 
@@ -122,7 +122,7 @@ sub p2p_connect($$) {
     my $buffer;
 
     # Initialize a few variables for the connection
-    $hash->{P2P}{$station_sn}{timeout}   = 3 * 1000;
+    $hash->{P2P}{$station_sn}{timeout}   = 3;
     $hash->{P2P}{$station_sn}{connect}   = 0;
     $hash->{P2P}{$station_sn}{seqNumber} = 0;
 
@@ -131,42 +131,69 @@ sub p2p_connect($$) {
     my $sock = IO::Socket::INET->new(
         PeerAddr  => $hash->{P2P}{$station_sn}{station_ip},
         PeerPort  => $hash->{P2P}{$station_sn}{station_port},
-        ReusAddr  => 1,
+        #ReusAddr  => 1,
         ReusePort => 1,
         Type      => SOCK_DGRAM,
-        Proto     => 'udp'
+        Proto     => 'udp',
     );
 
     if ( !$sock ) {
         print "failed create socket\n";
         return 0;
     }
-    $hash->{P2P}{$station_sn}{sock} = $sock;
 
-    my $recvsock = IO::Socket::INET->new(
-        Proto     => 'udp',
-        LocalPort => $sock->sockport(),
-        ReusAddr  => 1,
-        ReusePort => 1,
-        Timeout   => 3
-    );
+		#     my $recvsock = IO::Socket::INET->new(
+		#         Proto     => 'udp',
+		#         LocalPort => $sock->sockport(),
+		#         ReusAddr  => 1,
+		#         ReusePort => 1,
+		#         Timeout   => 3
+		#     );
+		#
+		#     if ( !$recvsock ) {
+		#         print "failed create recvSocket\n";
+		# $sock->close();
+		#         return 0;
+		#     }
 
-    if ( !$recvsock ) {
-        print "failed create recvSocket\n";
-        return 0;
-    }
+    #print Dumper($recvsock);
 
-    $hash->{P2P}{$station_sn}{recvsock} = $recvsock;
 
     sendMessage( $sock, RequestMessageType->{CHECK_CAM}, $hash->{P2P}{$station_sn}{p2p_did_hex} . "\x00\x00\x00\x00\x00\x00" );
-    print "p2p_connect send finished. Wait fpr CAM_ID Response\n";
+	#$sock->close();
+	
+	
+    print "p2p_connect send finished. Wait for CAM_ID Response\n";
     print Dumper( $hash->{P2P} );
 
-    $recvsock->recv( $buffer, 1024 );
+    $sock->recv( $buffer, 1024 );
     print logResponseMessage($buffer);
-
+	
+	#$recvsock->close();
+	$hash->{P2P}{$station_sn}{connect}   = 1;
     return 1;
 }
+
+sub sendCommandWithInt($$$$) {
+	my ($hash, $station_sn, $cmd_type, $value) = @_;
+	
+	print "station_sn:$station_sn cmd_type:$cmd_type value:$value\n";
+	
+	# Entspricht Funktion buildIntCommandPayload(value, this.actor) aus payload.utils.ts
+	my $payload = "\x88\x00";
+	$payload .="\x00\x00\x01\x00\xff\x00\x00\x00";
+	$payload .= pack('c*',$value);
+	$payload .= "\x00\x00\x00";
+	$payload .= pack('H*',$hash->{P2P}{$station_sn}{action_user_id});
+	$payload .= "\x00" x 88;
+	
+	#print "payload [".unpack('H*',$payload)."] len:".length($payload)."\n";
+	
+	# Enspricht Funktion sendCommand aus device-client.service.ts
+	my $seqNr = $hash->{P2P}{$station_sn}{seqNumber}++;
+	my $cmdHeader = "\xd1\x00";
+	#$cmdHeader .=    ### <<<<<======= Hier weiter machen
+ }
 
 sub hasHeader($$) {
     my ( $msg, $type ) = @_;
@@ -182,7 +209,9 @@ sub sendMessage($$$) {
 
     my $payload_len = pack( 'CC', int( ( length($payload) / 256 ) ), length($payload) % 256 );
     my $message     = $type . $payload_len . $payload;
-    my $sent        = $sock->send($message);
+
+    $sock->send($message);
+
     my $hex         = unpack( 'H*', $message );
     print "send message [$hex]\n";
 }
@@ -201,8 +230,14 @@ sub logResponseMessage($) {
         $msg_str .= "Payload len: " . ( $len_h * 256 + $len_l ) . " ";
         $msg_str .= "P2P_did: " . $p2p_did1 . "-" . substr( "000000" . ( $p2p_did2_h * 256 + $p2p_did2_l ), -6 ) . "-" . $p2p_did3;
     }
+	elsif (hasHeader( $msg, ResponseMessageType->{CAM_ID} )) {
+        $msg_str .= "Msg-Type: CAM_ID Response ";
+        my ( undef, $len_h, $len_l, $p2p_did1, undef, $p2p_did2_h, $p2p_did2_l, $p2p_did3 ) = unpack( 'H4CCA7H6CCA6', $msg );
+        $msg_str .= "Payload len: " . ( $len_h * 256 + $len_l ) . " ";
+        $msg_str .= "P2P_did: " . $p2p_did1 . "-" . substr( "000000" . ( $p2p_did2_h * 256 + $p2p_did2_l ), -6 ) . "-" . $p2p_did3;		
+	}
     else {
-        $msg_str .= "Msg-Type: Unknown Response Message Type";
+        $msg_str .= "Msg-Type: Unknown Response Message Type: ".unpack('H4',$msg);
     }
 
     $msg_str .= "\n";
