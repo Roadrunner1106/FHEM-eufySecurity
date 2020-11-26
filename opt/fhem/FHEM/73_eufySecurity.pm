@@ -153,7 +153,7 @@ sub eufySecurity_Initialize($) {
     #                  Format: <moduld_name>_<device_sn>
     #                  z.B. eufyCamera_T8114P0220272D96
     # <cmd>.        => Kommando an logisches Modul z.B. UPDATE
-	# <args>.       => optional weitere Argumente duch einen Doppelpunkt getrennt (abhängig von <cmd>)
+    # <args>.       => optional weitere Argumente duch einen Doppelpunkt getrennt (abhängig von <cmd>)
     $hash->{MatchList} = {
         "1:eufyCamera"  => "^(1|7|8|9|30):.*",
         "2:eufyStation" => "^0:.*"
@@ -419,7 +419,21 @@ sub eufySecurity_Write ($$) {
         }
     }
     elsif ( $cmd eq "CONNECT_STATION" ) {
+
+        #Set hash to default values for P2P connection
+        $hash->{P2P}{$sn}{NAME}           = "P2P_" . $sn;
+        $hash->{P2P}{$sn}{PARENT}         = $name;
+        $hash->{P2P}{$sn}{state}          = "disconnect";
+        $hash->{P2P}{$sn}{local_ip}       = $args[0];
+        $hash->{P2P}{$sn}{p2p_did}        = $args[1];
+        $hash->{P2P}{$sn}{action_user_id} = $args[2];
+        $hash->{P2P}{$sn}{directReadFn}   = \&eufySecurity_Read;
+ 
         Log3 $name, 3, "eufySecurity $name (Write) - connect to " . $args[0] . " p2p_did:" . $args[1] . " user_id:" . $args[2];
+
+		# TBD Returnwert ist p2p_state der Verbindung (connect|disconnect|error)
+		my $ret = p2p_connect($hash, $sn);
+		Dispatch( $hash,  "$device_type:$sn:SET_P2P_STATE:$ret" );
     }
     elsif ( $cmd eq "GUARD_MODE" ) {
         Log3 $name, 3, "eufySecurity $name (Write) - set Guard Mode to " . $args[0];
@@ -786,6 +800,113 @@ sub decrypt_Password($$) {
     }
 
     return $dec_pwd;
+}
+
+
+# ----------------------------------------------------------------------------
+# Return first two bytes of P2P Message
+# ----------------------------------------------------------------------------
+sub p2p_connect($$) {
+	my ($hash, $station_sn) = @_;
+	my $local_port         = 32108;
+	my $buffer;
+	
+	# Send a lookup request to determine the port for further P2P connection
+    my $sndsock = IO::Socket::INET->new(
+        PeerAddr => $hash->{P2P}{$station_sn}{local_ip},
+        PeerPort => $local_port,
+        ReusePort => 1,
+        Proto => 'udp'
+    );
+
+    if ( !$sndsock ) {
+        return "error: failed create sndSocket";
+    }
+
+    my $recvsock = IO::Socket::INET->new(
+        Proto     => 'udp',
+        LocalPort => $sock->sockport(),
+        ReusAddr  => 1,
+        ReusePort => 1,
+        Timeout   => 3
+    );
+
+    if ( !$recvsock ) {
+        return "error: failed create recvSocket";
+    }
+	
+    my $payload = "\x00\x00";
+    sendMessage( $sndsock, "\xf1\x30", $payload );
+    $sndsock->close();
+
+    $recvsock->recv( $buffer, 1024 );
+    if ( hasHeader( $buffer, ResponseMessageType->{LOCAL_LOOKUP_RESP} ) ) {
+        $hash->{P2P}{$station_sn}{p2p_did_hex} = substr( $buffer, 4, 17 );
+    }
+
+    $local_port = $recvsock->peerport;	
+    $recvsock->close();
+
+    $hash->{P2P}{$station_sn}{local_ip}   = $local_ip;
+    $hash->{P2P}{$station_sn}{local_port} = $local_port;
+	
+	# init connection
+	$hash->{P2P}{$station_sn}{seq_nr} = 0;
+
+    Log3 $name, 3, "eufySecurity $name (p2p_connect) - connect to ip:port ($local_ip:$local_port)" ;
+	
+    my $sock = IO::Socket::INET->new(
+        PeerAddr => $local_ip,
+        PeerPort => $local_port,
+        ReusePort => 1,
+        Proto => 'udp',
+    );
+
+    if ( !$sock ) {
+        return "error: failed create P2P socket";
+    }
+	
+    sendMessage( $sock, RequestMessageType->{CHECK_CAM}, $hash->{P2P}{$station_sn}{p2p_did_hex} . "\x00\x00\x00\x00\x00\x00" );
+
+    $sock->recv( $buffer, 1024 );
+    $hash->{P2P}{$station_sn}{state} = 'connect';
+
+	# Set infos for X_ReadFn to handle receiving pakages
+    $hash->{P2P}{$station_sn}{SOCKET}  = $sock;
+	$hash->{P2P}{$station_sn}{FD} = $socket->fileno();
+	my $shash = $hash->{P2P}{$station_sn};
+	
+	$selectlist{$shash->{'NAME'}} = $shash;
+
+	return 'connect';
+}
+
+# ----------------------------------------------------------------------------
+# Send a message over P2P
+# ----------------------------------------------------------------------------
+sub sendMessage($$$) {
+    my ( $sock, $type, $payload ) = @_;
+
+    my $payload_len = int2BE( length($payload) );
+    my $message     = $type . $payload_len . $payload;
+
+    $sock->send($message);
+}
+
+# ----------------------------------------------------------------------------
+# convert integer in two bytes, low byte first (Little-Endian-Format)
+# ----------------------------------------------------------------------------
+sub int2LE($) {
+    my $value = shift;
+    return pack( 'CC', $value % 256, int( $value / 256 ) );
+}
+
+# ----------------------------------------------------------------------------
+# convert integer in two bytes, high byte first (Big-Endian-Format)
+# ----------------------------------------------------------------------------
+sub int2BE($) {
+    my $value = shift;
+    return pack( 'CC', int( $value / 256 ), $value % 256 );
 }
 
 # ----------------------------------------------------------------------------
