@@ -107,8 +107,11 @@ sub eufyStation_Set($@) {
     $message = $device_type . ":" . $station_sn;
 
     if ( $cmd eq 'connect' ) {
-        $message .= ":CONNECT_STATION:station_ip:p2p_did:action_user_id";
-        Log3 $name, 3, "eufyStation $name (set) -  connet to station (station_ip)";
+        my $station_ip     = $hash->{data}{params}{1176}{param_value};
+        my $p2p_did        = $hash->{data}{p2p_did};
+        my $action_user_id = $hash->{data}{member}{action_user_id};
+        $message .= ":CONNECT_STATION:$station_ip:$p2p_did:$action_user_id";
+        Log3 $name, 3, "eufyStation $name (set) -  connet to station ($station_ip)";
         $ret = IOWrite( $hash, $message );
         Log3 $name, 3, "eufyStation $name (set) - IOWrite return: $ret";
     }
@@ -155,7 +158,7 @@ sub eufyStation_Get($$@) {
 
 sub eufyStation_Parse ($$) {
     my ( $io_hash, $message ) = @_;
-    my ( $device_type, $station_sn, $cmd ) = split( /:/, $message );
+    my ( $device_type, $station_sn, $cmd, @args ) = split( /:/, $message );
     my $name = 'eufyStation_' . $station_sn;
 
     #my $hash   = $defs{$name};
@@ -272,7 +275,7 @@ sub eufyStation_Parse ($$) {
                 readingsBulkUpdateIfChanged( $hash, 'sec_sw_version',  $hash->{data}{sec_sw_version},                                      1 );
                 readingsBulkUpdateIfChanged( $hash, 'sec_sw_time',     FmtDateTime( $hash->{data}{sec_sw_time} ),                          1 );
                 readingsBulkUpdateIfChanged( $hash, 'sec_hw_version',  $hash->{data}{sec_hw_version},                                      1 );
-                readingsBulkUpdateIfChanged( $hash, 'event_num',       $hash->{data}event_num,                                           1 );
+                readingsBulkUpdateIfChanged( $hash, 'event_num',       $hash->{data}{event_num},                                           1 );
                 readingsBulkUpdateIfChanged( $hash, 'create_time',     FmtDateTime( $hash->{data}{create_time} ),                          1 );
                 readingsBulkUpdateIfChanged( $hash, 'update_time',     FmtDateTime( $hash->{data}{update_time} ),                          1 );
                 readingsBulkUpdateIfChanged( $hash, 'state',           $hash->{data}{status},                                              1 );
@@ -285,6 +288,11 @@ sub eufyStation_Parse ($$) {
 
             # Rückgabe des Gerätenamens, für welches die Nachricht bestimmt ist.
             return $hash->{NAME};
+        }
+        elsif ( $cmd eq 'SET_P2P_STATE' ) {
+            readingsBeginUpdate($hash);
+            readingsBulkUpdateIfChanged( $hash, 'p2p_state', $args[0], 1 );
+            readingsEndUpdate( $hash, 1 );
         }
         else {
             Log3 $name, 3, "eufyStation $name (Parse) - Unknown cmd $cmd";
