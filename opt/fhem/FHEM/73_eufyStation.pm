@@ -5,12 +5,20 @@
 package main;
 
 # Laden evtl. abhängiger Perl- bzw. FHEM-Hilfsmodule
+use Data::Dumper qw(Dumper);
 
 # Wenn 1 werden alle Attribute und Parameter als Readings im Device dargestellt
-my $DEBUG_READINGS = 1;
+my $DEBUG_READINGS = 0;
+
+use constant GuardMode_Num2String => {
+    0  => "AWAY",
+    1  => "HOME",
+    2  => "SCHEDULE",
+    47 => "GEOFENCING",
+    63 => "DISARMED",
+};
 
 # eufyStation Modulfunktionen
-
 sub eufyStation_Initialize($) {
     my ($hash) = @_;
 
@@ -68,12 +76,13 @@ sub eufyStation_Define($$) {
 }
 
 sub eufyStation_Undef($$) {
-    my ( $hash, $name ) = @_;
+    my ( $hash,        $name )       = @_;
+    my ( $device_type, $station_sn ) = $hash->{DEF};
 
     # TBD: Hier noch offene Verbindungne schliessen
 
     Log3 $name, 3, "eufyStation $name (Undef) - undefined";
-
+    delete $modules{eufyStation}{defptr}{$station_sn};
     return undef;
 }
 
@@ -91,8 +100,27 @@ sub eufyStation_Delete ($$) {
 
 sub eufyStation_Set($@) {
     my ( $hash, $name, $cmd, @args ) = @_;
+    my $ret;
+    my $message;
+    my ( $device_type, $station_sn ) = split( / /, $hash->{DEF} );
 
-    return undef;
+    $message = $device_type . ":" . $station_sn;
+
+    if ( $cmd eq 'connect' ) {
+        $message .= ":CONNECT_STATION:station_ip:p2p_did:action_user_id";
+        Log3 $name, 3, "eufyStation $name (set) -  connet to station (station_ip)";
+        $ret = IOWrite( $hash, $message );
+        Log3 $name, 3, "eufyStation $name (set) - IOWrite return: $ret";
+    }
+    elsif ( $cmd eq 'GuardMode' ) {
+        $message .= ":GUARD_MODE:" . $args[0];
+        Log3 $name, 3, "eufyStation $name (set) -  set station to GuardMode " . $args[0];
+        $ret = IOWrite( $hash, $message );
+        Log3 $name, 3, "eufyStation $name (set) - IOWrite return: $ret";
+    }
+    else {
+        return "Unknown argument $cmd, choose one of connect:noArg GuardMode:Away,Home,Schedule,Geofencing,Disarmed";
+    }
 }
 
 sub eufyStation_Get($$@) {
@@ -104,7 +132,7 @@ sub eufyStation_Get($$@) {
     return "\"get $name\" needs at least one argument" unless ( defined($opt) );
     Log3 $name, 3, "eufyStation $name (Get) - cmd: $opt";
 
-    if ( $opt eq "Update" ) {
+    if ( $opt eq "update" ) {
         Log3 $name, 3, "eufyStation $name (get) - update station";
         $message = $device_type . ":" . $station_sn . ":UPDATE_HUB";
         Log3 $name, 3, "eufyStation $name (get) - IOWrite message: " . $message;
@@ -119,7 +147,7 @@ sub eufyStation_Get($$@) {
         Log3 $name, 3, "eufyStation $name (get) - IOWrite return: $ret";
     }
     else {
-        return "Unknown argument $opt, choose one of Update DskKey";
+        return "Unknown argument $opt, choose one of update:noArg DskKey:noArg";
     }
 
     return undef;
@@ -130,125 +158,137 @@ sub eufyStation_Parse ($$) {
     my ( $device_type, $station_sn, $cmd ) = split( /:/, $message );
     my $name = 'eufyStation_' . $station_sn;
 
+    #my $hash   = $defs{$name};
+
     # wenn bereits eine Gerätedefinition existiert (via Definition Pointer aus Define-Funktion)
     if ( my $hash = $modules{eufyStation}{defptr}{$station_sn} ) {
 
         # Nachricht für $hash verarbeiten
-        Log3 $name, 3, "eufyStation $name (Parse) - station_sn:" . $station_sn . " im Hash gefunden, starte UPDATE";
+        Log3 $name, 3, "eufyStation $name (Parse) - station_sn:" . $station_sn . " im Hash gefunden, führe cmd $cmd aus";
 
-        # Set alias to station_name
-        CommandAttr( undef, $name . ' alias ' . $io_hash->{helper}{UPDATE}{station_name} );
+        if ( $cmd eq 'UPDATE' ) {
 
-        # Nachricht für $hash verarbeiten
-        if ($DEBUG_READINGS) {
-            Log3 $name, 3, "eufyStation $name (Parse) - Generate all attributes as Reading";
-            readingsBeginUpdate($hash);
-            while ( ( $key, $val ) = each %{ $io_hash->{helper}{UPDATE} } ) {
-                if ( $key eq 'params' ) {
+            # delete old data information
+            delete $hash->{data};
 
-                    # set reading for param array
-                    for ( $param = 0 ; $param < @{ $io_hash->{helper}{UPDATE}{params} } ; $param++ ) {
-                        readingsBulkUpdateIfChanged(
-                            $hash,
-                            $io_hash->{helper}{UPDATE}{params}[$param]{param_type},
-                            $io_hash->{helper}{UPDATE}{params}[$param]{param_value}, 1
-                        );
-                    }
-                }
-                elsif ( $key eq 'member' ) {
-                    while ( ( $k, $v ) = each %{ $io_hash->{helper}{UPDATE}{$key} } ) {
-                        if ( substr( $k, -5 ) eq '_time' ) {
-                            readingsBulkUpdateIfChanged( $hash, $key . "/" . $k, FmtDateTime($v), 1 );
+            # copy data of io_hash tp device hash
+            $hash->{data} = $io_hash->{helper}{UPDATE};
+
+            # rename key params to params_old and convert array to hash
+            $hash->{data}{params_old} = delete $hash->{data}{params};
+            for ( $i = 0 ; $i < @{ $hash->{data}{params_old} } ; $i++ ) {
+                my $param_type = $hash->{data}{params_old}[$i]{param_type};
+                delete $hash->{data}{params_old}[$i]{param_type};
+                delete $hash->{data}{params_old}[$i]{station_sn};
+                $hash->{data}{params}{$param_type} = $hash->{data}{params_old}[$i];
+            }
+            delete $hash->{data}{params_old};
+
+            # rename key devices tp devices_old and convert array to hash
+            $hash->{data}{devices_old} = delete $hash->{data}{devices};
+            for ( $i = 0 ; $i < @{ $hash->{data}{devices_old} } ; $i++ ) {
+                my $device_sn = $hash->{data}{devices_old}[$i]{device_sn};
+                delete $hash->{data}{devices_old}[$i]{device_sn};
+                $hash->{data}{devices}{$device_sn} = $hash->{data}{devices_old}[$i];
+            }
+            delete $hash->{data}{devices_old};
+
+            # Log3 $name, 3, "eufyStation $name (Parse) - Dumper " . Dumper( $hash->{data} );
+
+            # Set alias to station_name
+            CommandAttr( undef, $name . ' alias ' . $hash->{data}{station_name} );
+
+            # Nachricht für $hash verarbeiten
+            if ($DEBUG_READINGS) {
+                Log3 $name, 3, "eufyStation $name (Parse) - Generate all attributes as Reading";
+                readingsBeginUpdate($hash);
+                while ( ( $key, $val ) = each %{ $io_hash->{data} } ) {
+                    if ( $key eq 'params' ) {
+
+                        # set reading for params
+                        while ( ( $p, $h ) = each %{ $hash->{data}{params} } ) {
+                            my $param_type = $p;
+                            while ( ( $k, $v ) = each %{$h} ) {
+                                readingsBulkUpdateIfChanged( $hash, "params/$param_type/$k", $hash->{data}{params}{$k}{param_value}, 1 );
+                            }
                         }
-                        else {
-                            readingsBulkUpdateIfChanged( $hash, $key . "/" . $k, $v, 1 );
-                        }
                     }
-                }
-                elsif ( $key eq 'devices' ) {
-
-                    #Log3 $name, 3, "eufyStation $name (Parse) - enter Devices";
-                    for ( my $i = 0 ; $i < @{ $io_hash->{helper}{UPDATE}{$key} } ; $i++ ) {
-                        my $sn = $io_hash->{helper}{UPDATE}{$key}[$i]{device_sn};
-
-                        #Log3 $name, 3, "eufyStation $name (Parse) - enter Devices sn:$sn";
-                        while ( ( $k, $v ) = each %{ $io_hash->{helper}{UPDATE}{$key}[$i] } ) {
-
-                            #Log3 $name, 3, "eufyStation $name (Parse) - enter Devices k:$k v:$v";
+                    elsif ( $key eq 'member' ) {
+                        while ( ( $k, $v ) = each %{ $io_hash->{data}{$key} } ) {
                             if ( substr( $k, -5 ) eq '_time' ) {
-                                readingsBulkUpdateIfChanged( $hash, $key . "/" . $sn . "/" . $k, FmtDateTime($v), 1 );
+                                readingsBulkUpdateIfChanged( $hash, $key . "/" . $k, FmtDateTime($v), 1 );
                             }
                             else {
-                                readingsBulkUpdateIfChanged( $hash, $key . "/" . $sn . "/" . $k, $v, 1 );
+                                readingsBulkUpdateIfChanged( $hash, $key . "/" . $k, $v, 1 );
                             }
                         }
                     }
-                }
-                else {
-                    if ( substr( $key, -5 ) eq '_time' ) {
-                        readingsBulkUpdateIfChanged( $hash, $key, FmtDateTime($val), 1 );
+                    elsif ( $key eq 'devices' ) {
+
+                        #Log3 $name, 3, "eufyStation $name (Parse) - enter Devices";
+                        for ( my $i = 0 ; $i < @{ $io_hash->{data}{$key} } ; $i++ ) {
+                            my $sn = $io_hash->{helper}{UPDATE}{$key}[$i]{device_sn};
+
+                            #Log3 $name, 3, "eufyStation $name (Parse) - enter Devices sn:$sn";
+                            while ( ( $k, $v ) = each %{ $io_hash->{helper}{UPDATE}{$key}[$i] } ) {
+
+                                #Log3 $name, 3, "eufyStation $name (Parse) - enter Devices k:$k v:$v";
+                                if ( substr( $k, -5 ) eq '_time' ) {
+                                    readingsBulkUpdateIfChanged( $hash, $key . "/" . $sn . "/" . $k, FmtDateTime($v), 1 );
+                                }
+                                else {
+                                    readingsBulkUpdateIfChanged( $hash, $key . "/" . $sn . "/" . $k, $v, 1 );
+                                }
+                            }
+                        }
                     }
                     else {
-                        readingsBulkUpdateIfChanged( $hash, $key, $val, 1 );
+                        if ( substr( $key, -5 ) eq '_time' ) {
+                            readingsBulkUpdateIfChanged( $hash, $key, FmtDateTime($val), 1 );
+                        }
+                        else {
+                            readingsBulkUpdateIfChanged( $hash, $key, $val, 1 );
+                        }
                     }
-                }
 
+                }
+                readingsEndUpdate( $hash, 1 );
             }
-            readingsEndUpdate( $hash, 1 );
+            else {
+                Log3 $name, 3, "eufyStation $name (Parse) - generate only important attributes as Reading";
+
+                # Update der relevanten Readings
+                readingsBeginUpdate($hash);
+                readingsBulkUpdateIfChanged( $hash, 'station_id',      $hash->{data}{station_id},                                          1 );
+                readingsBulkUpdateIfChanged( $hash, 'device_type',     $DeviceType{ $hash->{data}{device_type} }[1],                       1 );
+                readingsBulkUpdateIfChanged( $hash, 'station_model',   $hash->{data}{station_model},                                       1 );
+                readingsBulkUpdateIfChanged( $hash, 'time_zone',       $hash->{data}{time_zone},                                           1 );
+                readingsBulkUpdateIfChanged( $hash, 'wifi_ssid',       $hash->{data}{wifi_ssid},                                           1 );
+                readingsBulkUpdateIfChanged( $hash, 'ip_addr',         $hash->{data}{ip_addr},                                             1 );
+                readingsBulkUpdateIfChanged( $hash, 'wifi_mac',        $hash->{data}{wifi_mac},                                            1 );
+                readingsBulkUpdateIfChanged( $hash, 'main_hw_version', $hash->{data}{main_hw_version},                                     1 );
+                readingsBulkUpdateIfChanged( $hash, 'main_sw_version', $hash->{data}{main_sw_version},                                     1 );
+                readingsBulkUpdateIfChanged( $hash, 'main_sw_time',    FmtDateTime( $hash->{data}{main_sw_time} ),                         1 );
+                readingsBulkUpdateIfChanged( $hash, 'sec_sw_version',  $hash->{data}{sec_sw_version},                                      1 );
+                readingsBulkUpdateIfChanged( $hash, 'sec_sw_time',     FmtDateTime( $hash->{data}{sec_sw_time} ),                          1 );
+                readingsBulkUpdateIfChanged( $hash, 'sec_hw_version',  $hash->{data}{sec_hw_version},                                      1 );
+                readingsBulkUpdateIfChanged( $hash, 'event_num',       $hash->{data}event_num,                                           1 );
+                readingsBulkUpdateIfChanged( $hash, 'create_time',     FmtDateTime( $hash->{data}{create_time} ),                          1 );
+                readingsBulkUpdateIfChanged( $hash, 'update_time',     FmtDateTime( $hash->{data}{update_time} ),                          1 );
+                readingsBulkUpdateIfChanged( $hash, 'state',           $hash->{data}{status},                                              1 );
+                readingsBulkUpdateIfChanged( $hash, 'p2p_did',         $hash->{data}{p2p_did},                                             1 );
+                readingsBulkUpdateIfChanged( $hash, 'ip_addr',         $hash->{data}{ip_addr},                                             1 );
+                readingsBulkUpdateIfChanged( $hash, 'ip_addr_local',   $hash->{data}{params}{1176}{param_value},                           1 );
+                readingsBulkUpdateIfChanged( $hash, 'guard_mode',      GuardMode_Num2String->{ $hash->{data}{params}{1224}{param_value} }, 1 );
+                readingsEndUpdate( $hash, 1 );
+            }
+
+            # Rückgabe des Gerätenamens, für welches die Nachricht bestimmt ist.
+            return $hash->{NAME};
         }
         else {
-            Log3 $name, 3, "eufyStation $name (Parse) - generate only important attributes as Reading";
-
-            # Update der relevanten Readings
-            readingsBeginUpdate($hash);
-            readingsBulkUpdateIfChanged( $hash, 'station_name',       $io_hash->{helper}{UPDATE}{station_name},                      1 );
-            readingsBulkUpdateIfChanged( $hash, 'station_id',         $io_hash->{helper}{UPDATE}{station_id},                        1 );
-            readingsBulkUpdateIfChanged( $hash, 'station_sn',         $io_hash->{helper}{UPDATE}{station_sn},                        1 );
-            readingsBulkUpdateIfChanged( $hash, 'device_type',        $DeviceType{ $io_hash->{helper}{UPDATE}{device_type} }[1],     1 );
-            readingsBulkUpdateIfChanged( $hash, 'station_model',      $io_hash->{helper}{UPDATE}{station_model},                     1 );
-            readingsBulkUpdateIfChanged( $hash, 'time_zone',          $io_hash->{helper}{UPDATE}{time_zone},                         1 );
-            readingsBulkUpdateIfChanged( $hash, 'station_id',         $io_hash->{helper}{UPDATE}{station_id},                        1 );
-            readingsBulkUpdateIfChanged( $hash, 'wifi_ssid',          $io_hash->{helper}{UPDATE}{wifi_ssid},                         1 );
-            readingsBulkUpdateIfChanged( $hash, 'ip_addr',            $io_hash->{helper}{UPDATE}{ip_addr},                           1 );
-            readingsBulkUpdateIfChanged( $hash, 'wifi_mac',           $io_hash->{helper}{UPDATE}{wifi_mac},                          1 );
-            readingsBulkUpdateIfChanged( $hash, 'sub1g_mac',          $io_hash->{helper}{UPDATE}{sub1g_mac},                         1 );
-            readingsBulkUpdateIfChanged( $hash, 'main_hw_version',    $io_hash->{helper}{UPDATE}{main_hw_version},                   1 );
-            readingsBulkUpdateIfChanged( $hash, 'main_sw_version',    $io_hash->{helper}{UPDATE}{main_sw_version},                   1 );
-            readingsBulkUpdateIfChanged( $hash, 'main_sw_time',       FmtDateTime( $io_hash->{helper}{UPDATE}{main_sw_time} ),       1 );
-            readingsBulkUpdateIfChanged( $hash, 'sec_sw_version',     $io_hash->{helper}{UPDATE}{sec_sw_version},                    1 );
-            readingsBulkUpdateIfChanged( $hash, 'sec_sw_time',        FmtDateTime( $io_hash->{helper}{UPDATE}{sec_sw_time} ),        1 );
-            readingsBulkUpdateIfChanged( $hash, 'sec_hw_version',     $io_hash->{helper}{UPDATE}{sec_hw_version},                    1 );
-            readingsBulkUpdateIfChanged( $hash, 'volume',             $io_hash->{helper}{UPDATE}{volume},                            1 );
-            readingsBulkUpdateIfChanged( $hash, 'setup_code',         $io_hash->{helper}{UPDATE}{setup_code},                        1 );
-            readingsBulkUpdateIfChanged( $hash, 'setup_id',           $io_hash->{helper}{UPDATE}{setup_id},                          1 );
-            readingsBulkUpdateIfChanged( $hash, 'event_num',          $io_hash->{helper}{UPDATE}{time_zone},                         1 );
-            readingsBulkUpdateIfChanged( $hash, 'create_time',        FmtDateTime( $io_hash->{helper}{UPDATE}{create_time} ),        1 );
-            readingsBulkUpdateIfChanged( $hash, 'update_time',        FmtDateTime( $io_hash->{helper}{UPDATE}{update_time} ),        1 );
-            readingsBulkUpdateIfChanged( $hash, 'state',              $io_hash->{helper}{UPDATE}{status},                            1 );
-            readingsBulkUpdateIfChanged( $hash, 'station_status',     $io_hash->{helper}{UPDATE}{station_status},                    1 );
-            readingsBulkUpdateIfChanged( $hash, 'status_change_time', FmtDateTime( $io_hash->{helper}{UPDATE}{status_change_time} ), 1 );
-
-            readingsBulkUpdateIfChanged( $hash, 'p2p_did',            $io_hash->{helper}{UPDATE}{p2p_did},            1 );
-            readingsBulkUpdateIfChanged( $hash, 'push_did',           $io_hash->{helper}{UPDATE}{push_did},           1 );
-            readingsBulkUpdateIfChanged( $hash, 'p2p_license',        $io_hash->{helper}{UPDATE}{p2p_license},        1 );
-            readingsBulkUpdateIfChanged( $hash, 'push_license',       $io_hash->{helper}{UPDATE}{push_license},       1 );
-            readingsBulkUpdateIfChanged( $hash, 'ndt_did',            $io_hash->{helper}{UPDATE}{ndt_did},            1 );
-            readingsBulkUpdateIfChanged( $hash, 'ndt_license',        $io_hash->{helper}{UPDATE}{ndt_license},        1 );
-            readingsBulkUpdateIfChanged( $hash, 'wakeup_flag',        $io_hash->{helper}{UPDATE}{wakeup_flag},        1 );
-            readingsBulkUpdateIfChanged( $hash, 'p2p_conn',           $io_hash->{helper}{UPDATE}{p2p_conn},           1 );
-            readingsBulkUpdateIfChanged( $hash, 'app_conn',           $io_hash->{helper}{UPDATE}{app_conn},           1 );
-            readingsBulkUpdateIfChanged( $hash, 'wipn_enc_dec_key',   $io_hash->{helper}{UPDATE}{wipn_enc_dec_key},   1 );
-            readingsBulkUpdateIfChanged( $hash, 'wipn_ndt_aes128key', $io_hash->{helper}{UPDATE}{wipn_ndt_aes128key}, 1 );
-            readingsBulkUpdateIfChanged( $hash, 'query_server_did',   $io_hash->{helper}{UPDATE}{query_server_did},   1 );
-            readingsBulkUpdateIfChanged( $hash, 'prefix',             $io_hash->{helper}{UPDATE}{prefix},             1 );
-            readingsBulkUpdateIfChanged( $hash, 'wakeup_key',         $io_hash->{helper}{UPDATE}{wakeup_key},         1 );
-            readingsBulkUpdateIfChanged( $hash, 'sensor_info',        $io_hash->{helper}{UPDATE}{sensor_info},        1 );
-            readingsBulkUpdateIfChanged( $hash, 'is_init_complete',   $io_hash->{helper}{UPDATE}{is_init_complete},   1 );
-            readingsEndUpdate( $hash, 1 );
+            Log3 $name, 3, "eufyStation $name (Parse) - Unknown cmd $cmd";
         }
-
-        # Rückgabe des Gerätenamens, für welches die Nachricht bestimmt ist.
-        return $hash->{NAME};
     }
     else {
         # Keine Gerätedefinition verfügbar
