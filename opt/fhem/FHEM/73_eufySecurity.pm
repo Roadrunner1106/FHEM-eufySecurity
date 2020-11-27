@@ -253,6 +253,7 @@ sub eufySecurity_Rename($$) {
 
 sub eufySecurity_Set($@) {
     my ( $hash, $name, $cmd, @args ) = @_;
+    my $guard_mode;
 
     if ( $cmd eq "connect" ) {
 
@@ -293,7 +294,7 @@ sub eufySecurity_Set($@) {
         setKeyValue( $hash->{TYPE} . "_" . $hash->{NAME} . "_password", undef );
     }
     elsif ( $cmd eq "GuardMode" ) {
-        #
+		#
     }
     else {
         return "Unknown argument $cmd, choose one of connect:noArg password GuardMode:Away,Home,Schedule,Geofencing,Disarmed del_password:noArg";
@@ -343,7 +344,7 @@ sub eufySecurity_Get($$@) {
 sub eufySecurity_Read($) {
     my ($shash) = @_;    # ACHTUNG: Hier wird der Hash des Sockets übergeben und NICHT der Hash des Moduls!
 
-    my $sock = $shash->{FH};
+    my $sock = $shash->{SOCKET};
 
     # Hash des Moduls
     my $parent = $shash->{PARENT};
@@ -353,46 +354,65 @@ sub eufySecurity_Read($) {
     my $buffer;
     $sock->recv( $buffer, 1024 );
 
-    # if ( hasHeader( $buffer, ResponseMessageType->{PONG} ) ) {
-    #
-    #     # nothing todo
-    #     # responing to a PING from our side
-    #
-    #     return;
-    # }
-    # elsif ( hasHeader( $buffer, ResponseMessageType->{PING} ) ) {
-    #
-    #     #Todo, we have to answer with a PONG
-    #     Log3 $name, 3, "eufySecurity (Read) - receiver END-Message, close connection\n";
-    #
-    #     return;
-    # }
-    # elsif ( hasHeader( $buffer, ResponseMessageType->{END} ) ) {
-    #
-    #     #Todo
-    #     #  - den Socket schliessen
-    #     #  - Status Verbindung auf disconnect setzen
-    #     #  - $shahs aus selectlist löschen
-    # }
-    # elsif ( hasHeader( $buffer, ResponseMessageType->{CAM_ID} ) ) {
-    #
-    #     # Answer from the device to a CAM_CHECK message
-    #
-    #     return;
-    # }
-    # elsif ( hasHeader( $buffer, ResponseMessageType->{ACK} ) ) {
-    #
-    #     #Todo noch weiter in device-client-service.ts analysieren und implementieren
-    #     return;
-    # }
-    # elsif ( hasHeader( $buffer, ResponseMessageType->{DATA} ) )
-    #
-    #   #Todo noch weiter in device-client-service.ts analysieren und implementieren
-    #   return;
-    # else {
-    #     #Todo Hier noch die Station ausgeben, von der das Telegram kommt
-    #     Log3 $name, 3, "eufySecurity (Read) - unknown message type:" . unpack( 'H*', $buffer ) . "\n";
-    # }
+    if ( hasHeader( $buffer, ResponseMessageType->{PONG} ) ) {
+
+        # nothing todo
+        # responing to a PING from our side
+
+        return;
+    }
+    elsif ( hasHeader( $buffer, ResponseMessageType->{PING} ) ) {
+
+        #Todo, we have to answer with a PONG
+        sendMessage( $sock, RequestMessageType->{PONG}, "" );
+        return;
+    }
+    elsif ( hasHeader( $buffer, ResponseMessageType->{END} ) ) {
+
+        Log3 $name, 3, "eufySecurity (Read) - receiver END-Message, close connection";
+
+        #Todo
+        #  - den Socket schliessen
+        #  - Status Verbindung auf disconnect setzen
+        #  - $shash aus selectlist löschen
+        delete $selectlist{ $shash->{NAME} };
+        $sock->close();
+        $shash->{state} = 'disconnect';
+
+        my ( undef, $station_sn ) = split( /_/, $shash->{NAME} );
+        Dispatch( $hash, "0:$station_sn:SET_P2P_STATE:disconnect" );
+
+    }
+    elsif ( hasHeader( $buffer, ResponseMessageType->{CAM_ID} ) ) {
+
+        # Answer from the device to a CAM_CHECK message
+
+        return;
+    }
+    elsif ( hasHeader( $buffer, ResponseMessageType->{ACK} ) ) {
+
+        #Todo noch weiter in device-client-service.ts analysieren und implementieren
+        return;
+    }
+    elsif ( hasHeader( $buffer, ResponseMessageType->{DATA} ) ) {
+        my $seqNo          = unpack( 'C', substr( $buffer, 6, 1 ) ) * 256 + unpack( 'C', substr( $buffer, 7, 1 ) );
+        my $dataTypeBuffer = substr( $buffer, 4, 2 );
+        my $dataType       = dataType2Name($dataTypeBuffer);
+
+        # Test for duplicate
+        return if ( ( defined $shash->{seenSeqNo}{$dataType} ) and ( $shash->{seenSeqNo}{$dataType} >= $seqNo ) );
+        $shash->{seenSeqNo}{$dataType} = seqNo;
+        Log3 $name, 3, "eufySecurity (Read) - receive DATA message: " . unpack( 'H*', $buffer );
+
+        sendACK( $sock, $dataTypeBuffer, $seqNo );
+
+        #TBD:  DATA-Control Telegramme analysieren und auswerten
+        return;
+    }
+    else {
+        #Todo Hier noch die Station ausgeben, von der das Telegram kommt
+        Log3 $name, 3, "eufySecurity (Read) - unknown message type:" . unpack( 'H*', $buffer );
+    }
 }
 
 sub eufySecurity_Write ($$) {
@@ -428,15 +448,44 @@ sub eufySecurity_Write ($$) {
         $hash->{P2P}{$sn}{p2p_did}        = $args[1];
         $hash->{P2P}{$sn}{action_user_id} = $args[2];
         $hash->{P2P}{$sn}{directReadFn}   = \&eufySecurity_Read;
- 
+
         Log3 $name, 3, "eufySecurity $name (Write) - connect to " . $args[0] . " p2p_did:" . $args[1] . " user_id:" . $args[2];
 
-		# TBD Returnwert ist p2p_state der Verbindung (connect|disconnect|error)
-		my $ret = p2p_connect($hash, $sn);
-		Dispatch( $hash,  "$device_type:$sn:SET_P2P_STATE:$ret" );
+        # TBD Returnwert ist p2p_state der Verbindung (connect|disconnect|error)
+        my $ret = p2p_connect( $hash, $sn );
+        Dispatch( $hash, "$device_type:$sn:SET_P2P_STATE:$ret" );
+    }
+    elsif ( $cmd eq "DISCONNECT_STATION" ) {
+
+        # Send END message to close the connect
+        # The station also responds with an END message. The socket is then closed in
+        # eufySecurity_Read when the message arrives
+        sendMessage( $hash->{P2P}{$sn}{SOCKET}, ResponseMessageType->{END}, "" );
     }
     elsif ( $cmd eq "GUARD_MODE" ) {
-        Log3 $name, 3, "eufySecurity $name (Write) - set Guard Mode to " . $args[0];
+		my $guard_mode;
+        if ( $args[0] eq 'Away' ) {
+            $guard_mode = 0;
+        }
+        elsif ( $args[0] eq 'Home' ) {
+            $guard_mode = 1;
+        }
+        elsif ( $args[0] eq 'Schedule' ) {
+            $guard_mode = 2;
+        }
+        elsif ( $args[0] eq 'Geofencing' ) {
+            $guard_mode = 47;
+        }
+        elsif ( $args[0] eq 'Disarmed' ) {
+            $guard_mode = 63;
+        }
+        else {
+            Log3 $name, 3, "eufySecurity $name (Set) - unknown GuardMode $guard_mode";
+            return "unknown GuardMode $guard_mode";
+        }
+        Log3 $name, 3, "eufySecurity $name (Write) - set Guard Mode to " . $args[0]. "($guard_mode)";
+		
+		sendCommandWithInt( $hash, $sn, 1224, $guard_mode );
     }
     else {
         return "Unknown cmd $cmd";
@@ -802,21 +851,21 @@ sub decrypt_Password($$) {
     return $dec_pwd;
 }
 
-
 # ----------------------------------------------------------------------------
 # Return first two bytes of P2P Message
 # ----------------------------------------------------------------------------
 sub p2p_connect($$) {
-	my ($hash, $station_sn) = @_;
-	my $local_port         = 32108;
-	my $buffer;
-	
-	# Send a lookup request to determine the port for further P2P connection
+    my ( $hash, $station_sn ) = @_;
+    my $local_ip   = $hash->{P2P}{$station_sn}{local_ip};
+    my $local_port = 32108;
+    my $buffer;
+
+    # Send a lookup request to determine the port for further P2P connection
     my $sndsock = IO::Socket::INET->new(
-        PeerAddr => $hash->{P2P}{$station_sn}{local_ip},
-        PeerPort => $local_port,
+        PeerAddr  => $local_ip,
+        PeerPort  => $local_port,
         ReusePort => 1,
-        Proto => 'udp'
+        Proto     => 'udp'
     );
 
     if ( !$sndsock ) {
@@ -825,7 +874,7 @@ sub p2p_connect($$) {
 
     my $recvsock = IO::Socket::INET->new(
         Proto     => 'udp',
-        LocalPort => $sock->sockport(),
+        LocalPort => $sndsock->sockport(),
         ReusAddr  => 1,
         ReusePort => 1,
         Timeout   => 3
@@ -834,7 +883,7 @@ sub p2p_connect($$) {
     if ( !$recvsock ) {
         return "error: failed create recvSocket";
     }
-	
+
     my $payload = "\x00\x00";
     sendMessage( $sndsock, "\xf1\x30", $payload );
     $sndsock->close();
@@ -844,41 +893,40 @@ sub p2p_connect($$) {
         $hash->{P2P}{$station_sn}{p2p_did_hex} = substr( $buffer, 4, 17 );
     }
 
-    $local_port = $recvsock->peerport;	
+    $local_port = $recvsock->peerport;
     $recvsock->close();
 
-    $hash->{P2P}{$station_sn}{local_ip}   = $local_ip;
     $hash->{P2P}{$station_sn}{local_port} = $local_port;
-	
-	# init connection
-	$hash->{P2P}{$station_sn}{seq_nr} = 0;
 
-    Log3 $name, 3, "eufySecurity $name (p2p_connect) - connect to ip:port ($local_ip:$local_port)" ;
-	
+    # init connection
+    $hash->{P2P}{$station_sn}{seq_nr} = 0;
+
+    Log3 $name, 3, "eufySecurity $name (p2p_connect) - connect to ip:port ($local_ip:$local_port)";
+
     my $sock = IO::Socket::INET->new(
-        PeerAddr => $local_ip,
-        PeerPort => $local_port,
+        PeerAddr  => $local_ip,
+        PeerPort  => $local_port,
         ReusePort => 1,
-        Proto => 'udp',
+        Proto     => 'udp',
     );
 
     if ( !$sock ) {
         return "error: failed create P2P socket";
     }
-	
+
     sendMessage( $sock, RequestMessageType->{CHECK_CAM}, $hash->{P2P}{$station_sn}{p2p_did_hex} . "\x00\x00\x00\x00\x00\x00" );
 
     $sock->recv( $buffer, 1024 );
     $hash->{P2P}{$station_sn}{state} = 'connect';
 
-	# Set infos for X_ReadFn to handle receiving pakages
-    $hash->{P2P}{$station_sn}{SOCKET}  = $sock;
-	$hash->{P2P}{$station_sn}{FD} = $socket->fileno();
-	my $shash = $hash->{P2P}{$station_sn};
-	
-	$selectlist{$shash->{'NAME'}} = $shash;
+    # Set infos for X_ReadFn to handle receiving pakages
+    $hash->{P2P}{$station_sn}{SOCKET} = $sock;
+    $hash->{P2P}{$station_sn}{FD}     = $sock->fileno();
+    my $shash = $hash->{P2P}{$station_sn};
 
-	return 'connect';
+    $selectlist{ $shash->{'NAME'} } = $shash;
+
+    return 'connect';
 }
 
 # ----------------------------------------------------------------------------
@@ -890,7 +938,42 @@ sub sendMessage($$$) {
     my $payload_len = int2BE( length($payload) );
     my $message     = $type . $payload_len . $payload;
 
+    # Log message unless the type is PONG
+    Log3 $name, 3, "eufySecurity $name (sendMessage) - send message [" . unpack( 'H*', $message ) . "]" if $type ne RequestMessageType->{PONG};
     $sock->send($message);
+}
+
+# ----------------------------------------------------------------------------
+# Send a Acknowledge over P2P
+# ----------------------------------------------------------------------------
+sub sendACK($$$) {
+    my ( $sock, $dataType, $seqNo ) = @_;
+
+    # numPendingAcks ist immer 1
+
+    my $payload = $dataType . int2BE(1) . int2BE($seqNo);
+    sendMessage( $sock, RequestMessageType->{ACK}, $payload );
+}
+
+sub sendCommandWithInt($$$$) {
+    my ( $hash, $sn, $cmd_type, $value ) = @_;
+
+    # Entspricht Funktion buildIntCommandPayload(value, this.actor) aus payload.utils.ts
+    my $payload = "\x84\x00";
+    $payload .= "\x00\x00\x01\x00\xff\x00\x00\x00";
+    $payload .= pack( 'c', $value );                                       # Value for comannd CMD_SET_ARMING
+    $payload .= "\x00\x00\x00";
+    $payload .= pack( 'A*', $hash->{P2P}{$sn}{action_user_id} );
+    $payload .= "\x00" x 88;
+
+    # Enspricht Funktion sendCommand aus device-client.service.ts
+    my $seqNr = $hash->{P2P}{$sn}{seq_nr}++;
+
+    # buildCommandHeader(msgSeqNumber, commandType);
+    my $cmdHeader = "\xd1\x00" . int2BE($seqNr).MAGIC_WORD.int2LE($cmd_type);
+	my $data = $cmdHeader.$payload;
+
+	sendMessage($hash->{P2P}{$sn}{SOCKET}, RequestMessageType->{DATA}, $data)
 }
 
 # ----------------------------------------------------------------------------
@@ -915,6 +998,29 @@ sub int2BE($) {
 sub hasHeader($$) {
     my ( $msg, $type ) = @_;
     return substr( $msg, 0, 2 ) eq $type;
+}
+
+# ----------------------------------------------------------------------------
+# Return dataType Name as String
+# ----------------------------------------------------------------------------
+sub dataType2Name($) {
+    my $dataType = shift;
+
+    if ( $dataType eq "\xd1\x00" ) {
+        return "DATA";
+    }
+    elsif ( $dataType eq "\xd1\x01" ) {
+        return "VIDEO";
+    }
+    elsif ( $dataType eq "\xd1\x02" ) {
+        return "CONTROL";
+    }
+    elsif ( $dataType eq "\xd1\x03" ) {
+        return "BINARY";
+    }
+    else {
+        return "unknown";
+    }
 }
 
 # Eval-Rückgabewert für erfolgreiches

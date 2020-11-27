@@ -111,9 +111,23 @@ sub eufyStation_Set($@) {
         my $p2p_did        = $hash->{data}{p2p_did};
         my $action_user_id = $hash->{data}{member}{action_user_id};
         $message .= ":CONNECT_STATION:$station_ip:$p2p_did:$action_user_id";
-        Log3 $name, 3, "eufyStation $name (set) -  connet to station ($station_ip)";
-        $ret = IOWrite( $hash, $message );
-        Log3 $name, 3, "eufyStation $name (set) - IOWrite return: $ret";
+
+        if ( $station_ip ne '' and $p2p_did ne '' and $action_user_id ne '' ) {
+            Log3 $name, 3, "eufyStation $name (set) -  connet to station ($station_ip)";
+            $ret = IOWrite( $hash, $message );
+            Log3 $name, 3, "eufyStation $name (set) - IOWrite return: $ret";
+        }
+        else {
+			Log3 $name, 3, "eufyStation $name (set) -  station_ip:$station_ip p2p_did:$p2p_did action_user_id:$action_user_id";
+            Log3 $name, 3, "eufyStation $name (set) -  error connect. Some required values not available. Please execute <set stationname update> first.";
+			return "Error. See log"
+        }
+    } elsif ($cmd eq 'disconnect') {
+    	#if ($hash->{P2P}{$station_sn}{state} eq 'connect') {
+    		$message .= ":DISCONNECT_STATION";
+            $ret = IOWrite( $hash, $message );
+            Log3 $name, 3, "eufyStation $name (set) - IOWrite return: $ret";
+			#}
     }
     elsif ( $cmd eq 'GuardMode' ) {
         $message .= ":GUARD_MODE:" . $args[0];
@@ -122,7 +136,7 @@ sub eufyStation_Set($@) {
         Log3 $name, 3, "eufyStation $name (set) - IOWrite return: $ret";
     }
     else {
-        return "Unknown argument $cmd, choose one of connect:noArg GuardMode:Away,Home,Schedule,Geofencing,Disarmed";
+        return "Unknown argument $cmd, choose one of connect:noArg disconnect:noArg GuardMode:Away,Home,Schedule,Geofencing,Disarmed";
     }
 }
 
@@ -293,6 +307,7 @@ sub eufyStation_Parse ($$) {
             readingsBeginUpdate($hash);
             readingsBulkUpdateIfChanged( $hash, 'p2p_state', $args[0], 1 );
             readingsEndUpdate( $hash, 1 );
+			return $hash->{NAME};
         }
         else {
             Log3 $name, 3, "eufyStation $name (Parse) - Unknown cmd $cmd";
