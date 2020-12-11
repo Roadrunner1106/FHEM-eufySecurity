@@ -26,7 +26,7 @@ my %DeviceType = (
     10 => [ 'MOTION_SENSOR',    'Motion Sesor' ],
     11 => [ 'KEYPAD',           'Keypad' ],
     30 => [ 'INDOOR_CAMERA',    'Indoor Cemera' ],
-    31 => [ 'INDOOR_PT_CAMERA', 'Indoor PR Camera' ],
+    31 => [ 'INDOOR_PT_CAMERA', 'Indoor Pan & Tilt Camera' ],
     50 => [ 'LOCK_BASIC',       'Lock Basic' ],
     51 => [ 'LOCK_ADVANCED',    'Lock Advanced' ],
     52 => [ 'LOCK_SIMPLE',      'Lock Simple' ]
@@ -63,6 +63,291 @@ use constant ResponseMessageType => {
     ACK               => "\xf1\xd1",
     DATA              => "\xf1\xd0"
 };
+
+use constant CommandType2Num => {
+    ARM_DELAY_AWAY                                => 1158,
+    ARM_DELAY_CUS1                                => 1159,
+    ARM_DELAY_CUS2                                => 1160,
+    ARM_DELAY_CUS3                                => 1161,
+    ARM_DELAY_HOME                                => 1157,
+    AUTOMATION_DATA                               => 1278,
+    AUTOMATION_ID_LIST                            => 1165,
+    CMD_ALARM_DELAY_AWAY                          => 1167,
+    CMD_ALARM_DELAY_CUSTOM1                       => 1168,
+    CMD_ALARM_DELAY_CUSTOM2                       => 1169,
+    CMD_ALARM_DELAY_CUSTOM3                       => 1170,
+    CMD_ALARM_DELAY_HOME                          => 1166,
+    CMD_AUDDEC_SWITCH                             => 1017,
+    CMD_AUDIO_FRAME                               => 1301,
+    CMD_BATCH_RECORD                              => 1049,
+    CMD_BAT_DOORBELL_CHIME_SWITCH                 => 1702,
+    CMD_BAT_DOORBELL_MECHANICAL_CHIME_SWITCH      => 1703,
+    CMD_BAT_DOORBELL_QUICK_RESPONSE               => 1706,
+    CMD_BAT_DOORBELL_SET_ELECTRONIC_RINGTONE_TIME => 1709,
+    CMD_BAT_DOORBELL_SET_LED_ENABLE               => 1716,
+    CMD_BAT_DOORBELL_SET_NOTIFICATION_MODE        => 1710,
+    CMD_BAT_DOORBELL_SET_RINGTONE_VOLUME          => 1708,
+    CMD_BAT_DOORBELL_UPDATE_QUICK_RESPONSE        => 1707,
+    CMD_BAT_DOORBELL_VIDEO_QUALITY                => 1705,
+    CMD_BAT_DOORBELL_WDR_SWITCH                   => 1704,
+    CMD_BIND_BROADCAST                            => 1000,
+    CMD_BIND_SYNC_ACCOUNT_INFO                    => 1001,
+    CMD_BIND_SYNC_ACCOUNT_INFO_EX                 => 1054,
+    CMD_CAMERA_INFO                               => 1103,
+    CMD_CHANGE_PWD                                => 1030,
+    CMD_CHANGE_WIFI_PWD                           => 1031,
+    CMD_CLOSE_AUDDEC                              => 1018,
+    CMD_CLOSE_DEV_LED                             => 1046,
+    CMD_CLOSE_EAS                                 => 1016,
+    CMD_CLOSE_IRCUT                               => 1014,
+    CMD_CLOSE_PIR                                 => 1012,
+    CMD_COLLECT_RECORD                            => 1047,
+    CMD_CONVERT_MP4_OK                            => 1303,
+    CMD_DECOLLECT_RECORD                          => 1048,
+    CMD_DELLETE_RECORD                            => 1027,
+    CMD_DEL_FACE_PHOTO                            => 1234,
+    CMD_DEL_USER_PHOTO                            => 1232,
+    CMD_DEVS_BIND_BROADCASE                       => 1038,
+    CMD_DEVS_BIND_NOTIFY                          => 1039,
+    CMD_DEVS_LOCK                                 => 1019,
+    CMD_DEVS_SWITCH                               => 1035,
+    CMD_DEVS_TO_FACTORY                           => 1037,
+    CMD_DEVS_UNBIND                               => 1040,
+    CMD_DEVS_UNLOCK                               => 1020,
+    CMD_DEV_LED_SWITCH                            => 1045,
+    CMD_DEV_PUSHMSG_MODE                          => 1252,
+    CMD_DEV_RECORD_AUTOSTOP                       => 1251,
+    CMD_DEV_RECORD_INTERVAL                       => 1250,
+    CMD_DEV_RECORD_TIMEOUT                        => 1249,
+    CMD_DOENLOAD_FINISH                           => 1304,
+    CMD_DOORBELL_NOTIFY_PAYLOAD                   => 1701,
+    CMD_DOORBELL_SET_PAYLOAD                      => 1700,
+    CMD_DOOR_SENSOR_ALARM_ENABLE                  => 1506,
+    CMD_DOOR_SENSOR_DOOR_EVT                      => 1503,
+    CMD_DOOR_SENSOR_ENABLE_LED                    => 1505,
+    CMD_DOOR_SENSOR_GET_DOOR_STATE                => 1502,
+    CMD_DOOR_SENSOR_GET_INFO                      => 1501,
+    CMD_DOOR_SENSOR_INFO_REPORT                   => 1500,
+    CMD_DOOR_SENSOR_LOW_POWER_REPORT              => 1504,
+    CMD_DOWNLOAD_CANCEL                           => 1051,
+    CMD_DOWNLOAD_VIDEO                            => 1024,
+    CMD_EAS_SWITCH                                => 1015,
+    CMD_ENTRY_SENSOR_BAT_STATE                    => 1552,
+    CMD_ENTRY_SENSOR_CHANGE_TIME                  => 1551,
+    CMD_ENTRY_SENSOR_STATUS                       => 1550,
+    CMD_FLOODLIGHT_BROADCAST                      => 902,
+    CMD_FORMAT_SD                                 => 1029,
+    CMD_FORMAT_SD_PROGRESS                        => 1053,
+    CMD_GATEWAYINFO                               => 1100,
+    CMD_GEO_ADD_USER_INFO                         => 1259,
+    CMD_GEO_DEL_USER_INFO                         => 1261,
+    CMD_GEO_SET_USER_STATUS                       => 1258,
+    CMD_GEO_UPDATE_LOC_SETTING                    => 1262,
+    CMD_GEO_UPDATE_USER_INFO                      => 1260,
+    CMD_GET_ADMIN_PWD                             => 1122,
+    CMD_GET_ALARM_MODE                            => 1151,
+    CMD_GET_ARMING_INFO                           => 1107,
+    CMD_GET_ARMING_STATUS                         => 1108,
+    CMD_GET_AUDDEC_INFO                           => 1109,
+    CMD_GET_AUDDEC_SENSITIVITY                    => 1110,
+    CMD_GET_AUDDE_CSTATUS                         => 1111,
+    CMD_GET_AWAY_ACTION                           => 1239,
+    CMD_GET_BATTERY                               => 1101,
+    CMD_GET_BATTERY_TEMP                          => 1138,
+    CMD_GET_CAMERA_LOCK                           => 1119,
+    CMD_GET_CHARGE_STATUS                         => 1136,
+    CMD_GET_CUSTOM1_ACTION                        => 1148,
+    CMD_GET_CUSTOM2_ACTION                        => 1149,
+    CMD_GET_CUSTOM3_ACTION                        => 1150,
+    CMD_GET_DELAY_ALARM                           => 1164,
+    CMD_GET_DEVICE_PING                           => 1152,
+    CMD_GET_DEVS_NAME                             => 1129,
+    CMD_GET_DEVS_RSSI_LIST                        => 1274,
+    CMD_GET_DEV_STATUS                            => 1131,
+    CMD_GET_DEV_TONE_INFO                         => 1127,
+    CMD_GET_DEV_UPGRADE                           => 1134,
+    CMD_GET_EAS_STATUS                            => 1118,
+    CMD_GET_EXCEPTION_LOG                         => 1124,
+    CMD_GET_FLOODLIGHT_WIFI_LIST                  => 1405,
+    CMD_GET_GATEWAY_LOCK                          => 1120,
+    CMD_GET_HOME_ACTION                           => 1225,
+    CMD_GET_HUB_LAN_IP                            => 1176,
+    CMD_GET_HUB_LOG                               => 1132,
+    CMD_GET_HUB_LOGIG                             => 1140,
+    CMD_GET_HUB_NAME                              => 1128,
+    CMD_GET_HUB_POWWER_SUPPLY                     => 1137,
+    CMD_GET_HUB_TONE_INFO                         => 1126,
+    CMD_GET_HUB_UPGRADE                           => 1133,
+    CMD_GET_IRCUTSENSITIVITY                      => 1114,
+    CMD_GET_IRMODE                                => 1113,
+    CMD_GET_MDETECT_PARAM                         => 1105,
+    CMD_GET_MIRRORMODE                            => 1112,
+    CMD_GET_NEWVESION                             => 1125,
+    CMD_GET_OFF_ACTION                            => 1177,
+    CMD_GET_P2P_CONN_STATUS                       => 1130,
+    CMD_GET_PIRCTRL                               => 1116,
+    CMD_GET_PIRINFO                               => 1115,
+    CMD_GET_PIRSENSITIVITY                        => 1117,
+    CMD_GET_RECORD_TIME                           => 1104,
+    CMD_GET_REPEATER_CONN_TEST_RESULT             => 1270,
+    CMD_GET_REPEATER_RSSI                         => 1266,
+    CMD_GET_REPEATER_SITE_LIST                    => 1263,
+    CMD_GET_START_HOMEKIT                         => 1163,
+    CMD_GET_SUB1G_RSSI                            => 1141,
+    CMD_GET_TFCARD_FORMAT_STATUS                  => 1143,
+    CMD_GET_TFCARD_REPAIR_STATUS                  => 1153,
+    CMD_GET_TFCARD_STATUS                         => 1135,
+    CMD_GET_UPDATE_STATUS                         => 1121,
+    CMD_GET_UPGRADE_RESULT                        => 1043,
+    CMD_GET_WAN_LINK_STATUS                       => 1268,
+    CMD_GET_WAN_MODE                              => 1265,
+    CMD_GET_WIFI_PWD                              => 1123,
+    CMD_GET_WIFI_RSSI                             => 1142,
+    CMD_HUB_ALARM_TONE                            => 1281,
+    CMD_HUB_CLEAR_EMMC_VOLUME                     => 1800,
+    CMD_HUB_NOTIFY_ALARM                          => 1282,
+    CMD_HUB_NOTIFY_MODE                           => 1283,
+    CMD_HUB_REBOOT                                => 1034,
+    CMD_HUB_TO_FACTORY                            => 1036,
+    CMD_IRCUT_SWITCH                              => 1013,
+    CMD_KEYPAD_BATTERY_CAP_STATE                  => 1653,
+    CMD_KEYPAD_BATTERY_CHARGER_STATE              => 1655,
+    CMD_KEYPAD_BATTERY_TEMP_STATE                 => 1654,
+    CMD_KEYPAD_GET_PASSWORD                       => 1657,
+    CMD_KEYPAD_GET_PASSWORD_LIST                  => 1662,
+    CMD_KEYPAD_IS_PSW_SET                         => 1670,
+    CMD_KEYPAD_PSW_OPEN                           => 1664,
+    CMD_KEYPAD_SET_CUSTOM_MAP                     => 1660,
+    CMD_KEYPAD_SET_PASSWORD                       => 1650,
+    CMD_LEAVING_DELAY_AWAY                        => 1172,
+    CMD_LEAVING_DELAY_CUSTOM1                     => 1173,
+    CMD_LEAVING_DELAY_CUSTOM2                     => 1174,
+    CMD_LEAVING_DELAY_CUSTOM3                     => 1175,
+    CMD_LEAVING_DELAY_HOME                        => 1171,
+    CMD_LIVEVIEW_LED_SWITCH                       => 1056,
+    CMD_MDETECTINFO                               => 1106,
+    CMD_MOTION_SENSOR_BAT_STATE                   => 1601,
+    CMD_MOTION_SENSOR_ENABLE_LED                  => 1607,
+    CMD_MOTION_SENSOR_ENTER_USER_TEST_MODE        => 1613,
+    CMD_MOTION_SENSOR_EXIT_USER_TEST_MODE         => 1610,
+    CMD_MOTION_SENSOR_PIR_EVT                     => 1605,
+    CMD_MOTION_SENSOR_SET_CHIRP_TONE              => 1611,
+    CMD_MOTION_SENSOR_SET_PIR_SENSITIVITY         => 1609,
+    CMD_MOTION_SENSOR_WORK_MODE                   => 1612,
+    CMD_NAS_SWITCH                                => 1145,
+    CMD_NAS_TEST                                  => 1146,
+    CMD_NOTIFY_PAYLOAD                            => 1351,
+    CMD_P2P_DISCONNECT                            => 1044,
+    CMD_PING                                      => 1139,
+    CMD_PIR_SWITCH                                => 1011,
+    CMD_RECORDDATE_SEARCH                         => 1041,
+    CMD_RECORDLIST_SEARCH                         => 1042,
+    CMD_RECORD_AUDIO_SWITCH                       => 1366,
+    CMD_RECORD_IMG                                => 1021,
+    CMD_RECORD_IMG_STOP                           => 1022,
+    CMD_RECORD_PLAY_CTRL                          => 1026,
+    CMD_RECORD_VIEW                               => 1025,
+    CMD_REPAIR_PROGRESS                           => 1058,
+    CMD_REPAIR_SD                                 => 1057,
+    CMD_REPEATER_RSSI_TEST                        => 1269,
+    CMD_SDINFO                                    => 1102,
+    CMD_SDINFO_EX                                 => 1144,
+    CMD_SENSOR_SET_CHIRP_TONE                     => 1507,
+    CMD_SENSOR_SET_CHIRP_VOLUME                   => 1508,
+    CMD_SET_AI_NICKNAME                           => 1242,
+    CMD_SET_AI_PHOTO                              => 1231,
+    CMD_SET_AI_SWITCH                             => 1236,
+    CMD_SET_ALL_ACTION                            => 1255,
+    CMD_SET_ARMING                                => 1224,
+    CMD_SET_ARMING_SCHEDULE                       => 1211,
+    CMD_SET_AS_SERVER                             => 1237,
+    CMD_SET_AUDDEC_INFO                           => 1212,
+    CMD_SET_AUDDEC_SENSITIVITY                    => 1213,
+    CMD_SET_AUDIOSENSITIVITY                      => 1227,
+    CMD_SET_AUTO_DELETE_RECORD                    => 1367,
+    CMD_SET_BITRATE                               => 1206,
+    CMD_SET_CUSTOM_MODE                           => 1256,
+    CMD_SET_DEVS_NAME                             => 1217,
+    CMD_SET_DEVS_OSD                              => 1214,
+    CMD_SET_DEVS_TONE_FILE                        => 1202,
+    CMD_SET_DEV_MD_RECORD                         => 1273,
+    CMD_SET_DEV_MIC_MUTE                          => 1240,
+    CMD_SET_DEV_MIC_VOLUME                        => 1229,
+    CMD_SET_DEV_SPEAKER_MUTE                      => 1241,
+    CMD_SET_DEV_SPEAKER_VOLUME                    => 1230,
+    CMD_SET_DEV_STORAGE_TYPE                      => 1228,
+    CMD_SET_FLOODLIGHT_BRIGHT_VALUE               => 1401,
+    CMD_SET_FLOODLIGHT_DETECTION_AREA             => 1407,
+    CMD_SET_FLOODLIGHT_LIGHT_SCHEDULE             => 1404,
+    CMD_SET_FLOODLIGHT_MANUAL_SWITCH              => 1400,
+    CMD_SET_FLOODLIGHT_STREET_LAMP                => 1402,
+    CMD_SET_FLOODLIGHT_TOTAL_SWITCH               => 1403,
+    CMD_SET_FLOODLIGHT_WIFI_CONNECT               => 1406,
+    CMD_SET_GSSENSITIVITY                         => 1226,
+    CMD_SET_HUB_ALARM_AUTO_END                    => 1280,
+    CMD_SET_HUB_ALARM_CLOSE                       => 1279,
+    CMD_SET_HUB_AUDEC_STATUS                      => 1222,
+    CMD_SET_HUB_GS_STATUS                         => 1220,
+    CMD_SET_HUB_IRCUT_STATUS                      => 1219,
+    CMD_SET_HUB_MVDEC_STATUS                      => 1221,
+    CMD_SET_HUB_NAME                              => 1216,
+    CMD_SET_HUB_OSD                               => 1253,
+    CMD_SET_HUB_PIR_STATUS                        => 1218,
+    CMD_SET_HUB_SPK_VOLUME                        => 1235,
+    CMD_SET_IRMODE                                => 1208,
+    CMD_SET_JSON_SCHEDULE                         => 1254,
+    CMD_SET_LANGUAGE                              => 1200,
+    CMD_SET_LIGHT_CTRL_BRIGHT_PIR                 => 1412,
+    CMD_SET_LIGHT_CTRL_BRIGHT_SCH                 => 1413,
+    CMD_SET_LIGHT_CTRL_LAMP_VALUE                 => 1410,
+    CMD_SET_LIGHT_CTRL_PIR_SWITCH                 => 1408,
+    CMD_SET_LIGHT_CTRL_PIR_TIME                   => 1409,
+    CMD_SET_LIGHT_CTRL_SUNRISE_INFO               => 1415,
+    CMD_SET_LIGHT_CTRL_SUNRISE_SWITCH             => 1414,
+    CMD_SET_LIGHT_CTRL_TRIGGER                    => 1411,
+    CMD_SET_MDETECTPARAM                          => 1204,
+    CMD_SET_MDSENSITIVITY                         => 1272,
+    CMD_SET_MIRRORMODE                            => 1207,
+    CMD_SET_MOTION_SENSITIVITY                    => 1276,
+    CMD_SET_NIGHT_VISION_TYPE                     => 1277,
+    CMD_SET_NOTFACE_PUSHMSG                       => 1248,
+    CMD_SET_PAYLOAD                               => 1350,
+    CMD_SET_PIRSENSITIVITY                        => 1210,
+    CMD_SET_PIR_INFO                              => 1209,
+    CMD_SET_PIR_POWERMODE                         => 1246,
+    CMD_SET_PIR_TEST_MODE                         => 1243,
+    CMD_SET_PRI_ACTION                            => 1233,
+    CMD_SET_RECORDTIME                            => 1203,
+    CMD_SET_REPEATER_PARAMS                       => 1264,
+    CMD_SET_RESOLUTION                            => 1205,
+    CMD_SET_SCHEDULE_DEFAULT                      => 1257,
+    CMD_SET_SNOOZE_MODE                           => 1271,
+    CMD_SET_STORGE_TYPE                           => 1223,
+    CMD_SET_TELNET                                => 1247,
+    CMD_SET_TIMEZONE                              => 1215,
+    CMD_SET_TONE_FILE                             => 1201,
+    CMD_SET_UPGRADE                               => 1238,
+    CMD_SNAPSHOT                                  => 1028,
+    CMD_START_REALTIME_MEDIA                      => 1003,
+    CMD_START_RECORD                              => 1009,
+    CMD_START_REC_BROADCASE                       => 900,
+    CMD_START_TALKBACK                            => 1005,
+    CMD_START_VOICECALL                           => 1007,
+    CMD_STOP_REALTIME_MEDIA                       => 1004,
+    CMD_STOP_RECORD                               => 1010,
+    CMD_STOP_REC_BROADCASE                        => 901,
+    CMD_STOP_SHARE                                => 1023,
+    CMD_STOP_TALKBACK                             => 1006,
+    CMD_STOP_VOICECALL                            => 1008,
+    CMD_STREAM_MSG                                => 1302,
+    CMD_STRESS_TEST_OPER                          => 1050,
+    CMD_TIME_SYCN                                 => 1033,
+    CMD_UNBIND_ACCOUNT                            => 1002,
+    CMD_VIDEO_FRAME                               => 1300,
+    CMD_WIFI_CONFIG                               => 1032
+};
+
+my %Num2CommandType = reverse CommandType2Num;
 
 use constant MAGIC_WORD => 'XZYH';
 
@@ -155,8 +440,8 @@ sub eufySecurity_Initialize($) {
     # <cmd>.        => Kommando an logisches Modul z.B. UPDATE
     # <args>.       => optional weitere Argumente duch einen Doppelpunkt getrennt (abhängig von <cmd>)
     $hash->{MatchList} = {
-        "1:eufyCamera"  => "^(1|7|8|9|30):.*",
-        "2:eufyStation" => "^0:.*"
+        "1:eufyCamera"  => "^C:(1|7|8|9|30|31):.*",
+        "2:eufyStation" => "^S:(0|31):.*"
     };
 
     $hash->{AttrList} = 'mail ' . 'timeout ' . 'eufySecurity-API-URL' . $readingFnAttributes;
@@ -294,14 +579,14 @@ sub eufySecurity_Set($@) {
         setKeyValue( $hash->{TYPE} . "_" . $hash->{NAME} . "_password", undef );
     }
     elsif ( $cmd eq "GuardMode" ) {
-		#
+        #
     }
     else {
         return "Unknown argument $cmd, choose one of connect:noArg password GuardMode:Away,Home,Schedule,Geofencing,Disarmed del_password:noArg";
     }
 }
 
-sub eufySecurity_Get($$@) {
+sub eufySecurity_Get($$$@) {
     my ( $hash, $name, $opt, @args ) = @_;
 
     return "\"get $name\" needs at least one argument" unless ( defined($opt) );
@@ -341,6 +626,9 @@ sub eufySecurity_Get($$@) {
     }
 }
 
+# ----------------------------------------------------------------------------
+# The read function is called automatically when data is received on a socket
+# ----------------------------------------------------------------------------
 sub eufySecurity_Read($) {
     my ($shash) = @_;    # ACHTUNG: Hier wird der Hash des Sockets übergeben und NICHT der Hash des Moduls!
 
@@ -358,40 +646,40 @@ sub eufySecurity_Read($) {
 
         # nothing todo
         # responing to a PING from our side
-
         return;
     }
     elsif ( hasHeader( $buffer, ResponseMessageType->{PING} ) ) {
 
-        #Todo, we have to answer with a PONG
+        # We have to answer with a PONG
         sendMessage( $sock, RequestMessageType->{PONG}, "" );
         return;
     }
     elsif ( hasHeader( $buffer, ResponseMessageType->{END} ) ) {
 
-        Log3 $name, 3, "eufySecurity (Read) - receiver END-Message, close connection";
+        Log3 $name, 3, "eufySecurity (Read) - receive END-Message, close connection";
 
-        #Todo
-        #  - den Socket schliessen
-        #  - Status Verbindung auf disconnect setzen
-        #  - $shash aus selectlist löschen
         delete $selectlist{ $shash->{NAME} };
         $sock->close();
         $shash->{state} = 'disconnect';
 
-        my ( undef, $station_sn ) = split( /_/, $shash->{NAME} );
-        Dispatch( $hash, "0:$station_sn:SET_P2P_STATE:disconnect" );
-
+        my ( $device_type, $station_sn ) = split( /_/, $shash->{NAME} );
+        Dispatch( $hash, "S:$device_type:$station_sn:SET_P2P_STATE:disconnect" );
     }
     elsif ( hasHeader( $buffer, ResponseMessageType->{CAM_ID} ) ) {
 
         # Answer from the device to a CAM_CHECK message
-
         return;
     }
     elsif ( hasHeader( $buffer, ResponseMessageType->{ACK} ) ) {
 
-        #Todo noch weiter in device-client-service.ts analysieren und implementieren
+        # receive ACK for a data telegram sent by us
+        my $numAcks = unpack( 'n', substr( $buffer, 6, 2 ) );
+        for ( my $i = 1 ; $i <= $numAcks ; $i++ ) {
+            my $index      = 6 + $i * 2;
+            my $ackedSeqNo = unpack( 'n', substr( $buffer, $index, 2 ) );
+            Log3 $name, 3, "eufySecurity (Read) - receive ACK for seqNo $ackedSeqNo";
+        }
+
         return;
     }
     elsif ( hasHeader( $buffer, ResponseMessageType->{DATA} ) ) {
@@ -405,8 +693,7 @@ sub eufySecurity_Read($) {
         Log3 $name, 3, "eufySecurity (Read) - receive DATA message: " . unpack( 'H*', $buffer );
 
         sendACK( $sock, $dataTypeBuffer, $seqNo );
-
-        #TBD:  DATA-Control Telegramme analysieren und auswerten
+        handleData( $shash, $hash, $seqNo, $dataType, $buffer );
         return;
     }
     else {
@@ -441,7 +728,7 @@ sub eufySecurity_Write ($$) {
     elsif ( $cmd eq "CONNECT_STATION" ) {
 
         #Set hash to default values for P2P connection
-        $hash->{P2P}{$sn}{NAME}           = "P2P_" . $sn;
+        $hash->{P2P}{$sn}{NAME}           = $device_type . "_" . $sn;
         $hash->{P2P}{$sn}{PARENT}         = $name;
         $hash->{P2P}{$sn}{state}          = "disconnect";
         $hash->{P2P}{$sn}{local_ip}       = $args[0];
@@ -453,7 +740,7 @@ sub eufySecurity_Write ($$) {
 
         # TBD Returnwert ist p2p_state der Verbindung (connect|disconnect|error)
         my $ret = p2p_connect( $hash, $sn );
-        Dispatch( $hash, "$device_type:$sn:SET_P2P_STATE:$ret" );
+        Dispatch( $hash, "S:$device_type:$sn:SET_P2P_STATE:$ret" );
     }
     elsif ( $cmd eq "DISCONNECT_STATION" ) {
 
@@ -461,9 +748,10 @@ sub eufySecurity_Write ($$) {
         # The station also responds with an END message. The socket is then closed in
         # eufySecurity_Read when the message arrives
         sendMessage( $hash->{P2P}{$sn}{SOCKET}, ResponseMessageType->{END}, "" );
+        Dispatch( $hash, "S:$device_type:$sn:SET_P2P_STATE:disconnect" );
     }
     elsif ( $cmd eq "GUARD_MODE" ) {
-		my $guard_mode;
+        my $guard_mode;
         if ( $args[0] eq 'Away' ) {
             $guard_mode = 0;
         }
@@ -483,9 +771,9 @@ sub eufySecurity_Write ($$) {
             Log3 $name, 3, "eufySecurity $name (Set) - unknown GuardMode $guard_mode";
             return "unknown GuardMode $guard_mode";
         }
-        Log3 $name, 3, "eufySecurity $name (Write) - set Guard Mode to " . $args[0]. "($guard_mode)";
-		
-		sendCommandWithInt( $hash, $sn, 1224, $guard_mode );
+        Log3 $name, 3, "eufySecurity $name (Write) - set Guard Mode to " . $args[0] . "($guard_mode)";
+
+        sendCommandWithInt( $hash, $sn, 1224, $guard_mode );
     }
     else {
         return "Unknown cmd $cmd";
@@ -648,7 +936,7 @@ sub getHubsCB($$$) {
                 # Update Daten über (io_)hash an Station übergeben
                 $hash->{helper}{UPDATE} = $json->{data}[$i];
                 my $found =
-                  Dispatch( $hash, $json->{data}[$i]{device_type} . ":" . $json->{data}[$i]{station_sn} . ":UPDATE" );
+                  Dispatch( $hash, "S:" . $json->{data}[$i]{device_type} . ":" . $json->{data}[$i]{station_sn} . ":UPDATE" );
                 Log3 $name, 3, "eufySecurity $name (Callback getHubs) - found: $found";
             }
         }
@@ -776,7 +1064,7 @@ sub getDevicesCB($$$) {
     my $name = $hash->{NAME};
 
     if ( $err eq "" ) {    # kein Fehler aufgetreten
-        Log3 $name, 3, "eufySecurity (Callback getDevices) - data: $data";
+        Log3 $name, 3, "eufySecurity (getDevicesCB) - data: $data";
 
         ### Check if json can be parsed into hash
         eval {
@@ -785,7 +1073,7 @@ sub getDevicesCB($$$) {
         } or do {
             ### Log Entry for debugging purposes
             Log3 $name, 3, "eufySecurity (Callback getDevicess) - Error decode json";
-            return "eufySecurity (Callback getDevices) - Error decode json";
+            return "eufySecurity (getDevicesCN) - Error decode json";
         };
 
         if ( $json->{code} == 0 ) {
@@ -795,17 +1083,17 @@ sub getDevicesCB($$$) {
                 # Update Daten über (io_)hash an Kamera übergeben
                 $hash->{helper}{UPDATE} = $json->{data}[$i];
                 my $found =
-                  Dispatch( $hash, $json->{data}[$i]{device_type} . ":" . $json->{data}[$i]{device_sn} . ":UPDATE" );
-                Log3 $name, 3, "eufySecurity (Callback getDevices) - found: $found";
+                  Dispatch( $hash, "C:" . $json->{data}[$i]{device_type} . ":" . $json->{data}[$i]{device_sn} . ":UPDATE" );
+                Log3 $name, 3, "eufySecurity (getDevicesCB) - found: $found";
             }
         }
         else {
-            Log3 $name, 3, "eufySecurity (Callback getDevices) - eufy Security Fehler code: " . $json->{code} . " msg: " . $json->{msg};
+            Log3 $name, 3, "eufySecurity (getDevicesCB) - eufy Security Fehler code: " . $json->{code} . " msg: " . $json->{msg};
         }
 
     }
     else {
-        Log3 $name, 3, "eufySecurity (Callback getDevices) - HttpUtils Fehler $err";
+        Log3 $name, 3, "eufySecurity (getDevicesCB) - HttpUtils Fehler $err";
     }
 }
 
@@ -961,7 +1249,7 @@ sub sendCommandWithInt($$$$) {
     # Entspricht Funktion buildIntCommandPayload(value, this.actor) aus payload.utils.ts
     my $payload = "\x84\x00";
     $payload .= "\x00\x00\x01\x00\xff\x00\x00\x00";
-    $payload .= pack( 'c', $value );                                       # Value for comannd CMD_SET_ARMING
+    $payload .= pack( 'c', $value );                               # Value for comannd CMD_SET_ARMING
     $payload .= "\x00\x00\x00";
     $payload .= pack( 'A*', $hash->{P2P}{$sn}{action_user_id} );
     $payload .= "\x00" x 88;
@@ -970,10 +1258,102 @@ sub sendCommandWithInt($$$$) {
     my $seqNr = $hash->{P2P}{$sn}{seq_nr}++;
 
     # buildCommandHeader(msgSeqNumber, commandType);
-    my $cmdHeader = "\xd1\x00" . int2BE($seqNr).MAGIC_WORD.int2LE($cmd_type);
-	my $data = $cmdHeader.$payload;
+    my $cmdHeader = "\xd1\x00" . int2BE($seqNr) . MAGIC_WORD . int2LE($cmd_type);
+    my $data      = $cmdHeader . $payload;
 
-	sendMessage($hash->{P2P}{$sn}{SOCKET}, RequestMessageType->{DATA}, $data)
+    sendMessage( $hash->{P2P}{$sn}{SOCKET}, RequestMessageType->{DATA}, $data );
+}
+
+sub handleData($$$$$) {
+    my ( $shash, $hash, $seqNo, $dataType, $buffer ) = @_;
+    my $name = $hash->{NAME};
+
+    if ( $dataType eq 'CONTROL' ) {
+        parseDataControl( $shash, $hash, $seqNo, $buffer );
+    }
+    elsif ( $dataType eq 'DATA' ) {
+
+        my $commandId = unpack( 'v', substr( $buffer, 12, 2 ) );
+        my $data      = unpack( 'v', substr( $buffer, 24, 2 ) );
+        Log3 $name, 3, "eufySecurity (handleData) - Data package with commandId: " . $num2CommandType->{$commandId} . " ($commandId) data: $data";
+    }
+    elsif ( $dataType eq 'BINARY' ) {
+
+    }
+    elsif ( $dataType eq 'VIDEO' ) {
+
+    }
+    else {
+        Log3 $name, 3, "eufySecurity (handleData) - unknown data type: " . pack( 'H*', substr( $buffer, 4, 2 ) );
+    }
+
+}
+
+sub parseDataControl($$$$) {
+    my ( $shash, $hash, $seqNo, $buffer ) = @_;
+    my $name = $hash->{NAME};
+    my ( $device_type, $station_sn ) = split( /_/, $shash->{DEF} );
+
+    if ( unpack( 'A*', substr( $buffer, 8, 4 ) ) eq MAGIC_WORD ) {
+        my $commandId = unpack( 'v', substr( $buffer, 12, 2 ) );
+        $hash->{P2P}{$station_sn}{ccmb}{commandId} = $commandId;
+
+        my $bytesToRead = unpack( 'v', substr( $buffer, 14, 2 ) );
+        $hash->{P2P}{$station_sn}{ccmb}{bytesToRead} = $bytesToRead;
+
+        my $payload = substr( $buffer, 24 );
+        $hash->{P2P}{$station_sn}{ccmb}{messages}[$seqNo] = $payload;
+        $hash->{P2P}{$station_sn}{ccmb}{bytesRead} += length($payload);
+    }
+    else {
+        my $payload = substr( $buffer, 8 );
+        $hash->{P2P}{$station_sn}{ccmb}{messages}[$seqNo] = $payload;
+        $hash->{P2P}{$station_sn}{ccmb}{bytesRead} += length($payload);
+    }
+
+    Log3 $name, 3,
+        "eufySecurity (parseDataControl) bytesToRead:"
+      . $hash->{P2P}{$station_sn}{ccmb}{bytesToRead}
+      . " bytesRead:"
+      . $hash->{P2P}{$station_sn}{ccmb}{bytesRead};
+
+    if ( $hash->{P2P}{$station_sn}{ccmb}{bytesRead} >= $hash->{P2P}{$station_sn}{ccmb}{bytesToRead} ) {
+        my $commandId       = $hash->{P2P}{$station_sn}{ccmb}{commandId};
+        my @messages        = $hash->{P2P}{$station_sn}{ccmb}{messages};
+        my $completeMessage = '';
+        while ( @{ $hash->{P2P}{$station_sn}{ccmb}{messages} } ) {
+            $completeMessage .= shift @{ $hash->{P2P}{$station_sn}{ccmb}{messages} };
+            Log3 $name, 3, "eufySecurity (parseDataControl) completeMessage [" . unpack( 'H*', $completeMessage ) . "]";
+        }
+
+        delete $hash->{P2P}{$station_sn}{ccmb};
+
+        handleDataControl( $shash, $hash, $commandId, $completeMessage );
+    }
+}
+
+sub handleDataControl($$$$) {
+    my ( $shash, $hash, $commandId, $message ) = @_;
+    my $name = $hash->{NAME};
+	my ($device_type, $station_sn) = split(/_/,$shash->{NAME});
+
+    if ( $commandId eq CommandType2Num->{CMD_GET_ALARM_MODE} ) {
+        my $guardMode = unpack( 'C', $message );
+        Log3 $name, 3, "eufySecurity (handleDataControl) GuardMode is set to $guardMode";
+		Dispatch($hash, "S:$device_type:$station_sn:SET_GUARDMODE:$guardMode");
+    }
+    elsif ( $commandId eq CommandType2Num->{CMD_CAMERA_INFO} ) {
+        Log3 $name, 3, "eufySecurity (handleDataControl) Camera info: " . unpack( 'A*', $message );
+		 $json = decode_json( encode_utf8($message) );
+		 for ( $i = 0 ; $i < @{ $json->{params} } ; $i++ ) {
+			 if ($json->{params}[$i]{param_type} == 1151) {
+				 my $guardMode = $json->{params}[$i]{param_value};
+			 	Dispatch($hash, "S:$device_type:$station_sn:SET_GUARDMODE:$guardMode");
+			 }
+		 }
+    } else {
+	    Log3 $name, 3, "eufySecurity (handleDataControl) Untreated message commandId: $commandId message [" . unpack( 'H*', $message ) . "]";
+    }
 }
 
 # ----------------------------------------------------------------------------
