@@ -23,8 +23,8 @@ my %DeviceType = (
     9  => [ 'CAMERA2',          'eufyCam 2' ],
     10 => [ 'MOTION_SENSOR',    'Motion Sesor' ],
     11 => [ 'KEYPAD',           'Keypad' ],
-    30 => [ 'INDOOR_CAMERA',    'Indoor Camera 2k' ],    # Cam & Station in one device
-    31 => [ 'INDOOR_PT_CAMERA', 'Indoor PR Camera' ],
+    30 => [ 'INDOOR_CAMERA',    'Indoor Camera 2k' ],           # Cam & Station in one device
+    31 => [ 'INDOOR_PT_CAMERA', 'Indoor Pan & Tilt Camera' ],
     50 => [ 'LOCK_BASIC',       'Lock Basic' ],
     51 => [ 'LOCK_ADVANCED',    'Lock Advanced' ],
     52 => [ 'LOCK_SIMPLE',      'Lock Simple' ]
@@ -54,7 +54,7 @@ sub eufyCamera_Initialize($) {
     # Funktionen für zweistufiges Modulkonzept
     $hash->{ParseFn}       = "eufyCamera_Parse";
     $hash->{FingerprintFn} = "eufyCamera_Fingerprint";
-    $hash->{Match}         = "^(1|7|8|9|30):.*";
+    $hash->{Match}         = "^C:(1|7|8|9|30|31rel):.*";
 
     # autocreate Option setzen
     $hash->{noAutocreatedFilelog} = 1;
@@ -86,8 +86,12 @@ sub eufyCamera_Define($$) {
     # Device ggf. den Raum eufySecurity zuweisen
     CommandAttr( undef, $name . ' room eufySecurity' ) if ( AttrVal( $name, 'room', 'none' ) eq 'none' );
     CommandAttr( undef, $name . ' icon it_camera' )    if ( AttrVal( $name, 'icon', 'none' ) eq 'none' );
-    CommandAttr( undef, $name . ' userReadings battery { ReadingsVal($NAME,"battery_level",0) > 10 ? "ok" : "low"}' )
-      if ( AttrVal( $name, 'userReadings', 'none' ) eq 'none' );
+
+    # battery reading only for cams with accu (camera, E, 2C,2)
+    if ( $device_type ~~ [ 1, 4, 8, 9 ] ) {
+        CommandAttr( undef, $name . ' userReadings battery { ReadingsVal($NAME,"battery_level",0) > 10 ? "ok" : "low"}' )
+          if ( AttrVal( $name, 'userReadings', 'none' ) eq 'none' );
+    }
 
     # Default-Werte für schnellen API-Zugriff im $hash ablegen
 
@@ -156,9 +160,9 @@ sub eufyCamera_Parse ($$) {
     # $io_hash ist der hash vom eufySecurity Device
     my ( $io_hash, $message ) = @_;
     my @msg         = split( /:/, $message );
-    my $device_type = $msg[0];
-    my $device_sn   = $msg[1];
-    my $cmd         = $msg[2];
+    my $device_type = $msg[1];
+    my $device_sn   = $msg[2];
+    my $cmd         = $msg[3];
     my $name        = 'eufyCamera_' . $device_sn;
 
     Log3 $name, 3, "eufyCamera (Parse) - eufy_device_type:" . $device_type . " device_sn:" . $device_sn . " cmd:" . $cmd;

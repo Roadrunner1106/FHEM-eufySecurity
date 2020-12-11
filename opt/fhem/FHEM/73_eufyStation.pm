@@ -41,12 +41,12 @@ sub eufyStation_Initialize($) {
     # Funktionen für zweistufiges Modulkonzept
     $hash->{ParseFn}       = "eufyStation_Parse";
     $hash->{FingerprintFn} = "eufyStation_Fingerprint";
-    $hash->{Match}         = "^0:.*";
+    $hash->{Match}         = "^S:(0|31):.*";
 
     # autocreate Option setzen
     $hash->{noAutocreatedFilelog} = 1;
 
-    $hash->{AttrList} = $readingFnAttributes;
+    $hash->{AttrList} = "userGuardModes ".$readingFnAttributes;
 }
 
 # define eunfyStation_T8010P2320270E8D eufyStation 0 T8010P2320270E8D
@@ -107,10 +107,21 @@ sub eufyStation_Set($@) {
     $message = $device_type . ":" . $station_sn;
 
     if ( $cmd eq 'connect' ) {
-        my $station_ip     = $hash->{data}{params}{1176}{param_value};
+        my $station_ip;
+        if ( $device_type == 0 ) {
+            $station_ip = $hash->{data}{params}{1176}{param_value};
+            Log3 $name, 3, "eufyStation $name (set) -  Station device type $device_type";
+        }
+        elsif ( $device_type == 31 ) {
+            $station_ip = $hash->{data}{ip_addr};
+            Log3 $name, 3, "eufyStation $name (set) -  Station device type $device_type";
+        }
+        else {
+            return "Unknown Device Type $device_type.";
+        }
         my $p2p_did        = $hash->{data}{p2p_did};
         my $action_user_id = $hash->{data}{member}{action_user_id};
-        $message .= ":CONNECT_STATION:$station_ip:$p2p_did:$action_user_id";
+        $message .= ":CONNECT_STATION:$station_ip:$p2p_did:$action_user_id:$device_type";
 
         if ( $station_ip ne '' and $p2p_did ne '' and $action_user_id ne '' ) {
             Log3 $name, 3, "eufyStation $name (set) -  connet to station ($station_ip)";
@@ -118,16 +129,19 @@ sub eufyStation_Set($@) {
             Log3 $name, 3, "eufyStation $name (set) - IOWrite return: $ret";
         }
         else {
-			Log3 $name, 3, "eufyStation $name (set) -  station_ip:$station_ip p2p_did:$p2p_did action_user_id:$action_user_id";
+            Log3 $name, 3, "eufyStation $name (set) -  station_ip:$station_ip p2p_did:$p2p_did action_user_id:$action_user_id  device_type:$device_type";
             Log3 $name, 3, "eufyStation $name (set) -  error connect. Some required values not available. Please execute <set stationname update> first.";
-			return "Error. See log"
+            return "Error. See log";
         }
-    } elsif ($cmd eq 'disconnect') {
-    	#if ($hash->{P2P}{$station_sn}{state} eq 'connect') {
-    		$message .= ":DISCONNECT_STATION";
-            $ret = IOWrite( $hash, $message );
-            Log3 $name, 3, "eufyStation $name (set) - IOWrite return: $ret";
-			#}
+    }
+    elsif ( $cmd eq 'disconnect' ) {
+
+        #if ($hash->{P2P}{$station_sn}{state} eq 'connect') {
+        $message .= ":DISCONNECT_STATION";
+        $ret = IOWrite( $hash, $message );
+        Log3 $name, 3, "eufyStation $name (set) - IOWrite return: $ret";
+
+        #}
     }
     elsif ( $cmd eq 'GuardMode' ) {
         $message .= ":GUARD_MODE:" . $args[0];
@@ -172,11 +186,11 @@ sub eufyStation_Get($$@) {
 
 sub eufyStation_Parse ($$) {
     my ( $io_hash, $message ) = @_;
-    my ( $device_type, $station_sn, $cmd, @args ) = split( /:/, $message );
+    my ( undef, $device_type, $station_sn, $cmd, @args ) = split( /:/, $message );
     my $name = 'eufyStation_' . $station_sn;
 
     #my $hash   = $defs{$name};
-
+	
     # wenn bereits eine Gerätedefinition existiert (via Definition Pointer aus Define-Funktion)
     if ( my $hash = $modules{eufyStation}{defptr}{$station_sn} ) {
 
@@ -276,27 +290,33 @@ sub eufyStation_Parse ($$) {
 
                 # Update der relevanten Readings
                 readingsBeginUpdate($hash);
-                readingsBulkUpdateIfChanged( $hash, 'station_id',      $hash->{data}{station_id},                                          1 );
-                readingsBulkUpdateIfChanged( $hash, 'device_type',     $DeviceType{ $hash->{data}{device_type} }[1],                       1 );
-                readingsBulkUpdateIfChanged( $hash, 'station_model',   $hash->{data}{station_model},                                       1 );
-                readingsBulkUpdateIfChanged( $hash, 'time_zone',       $hash->{data}{time_zone},                                           1 );
-                readingsBulkUpdateIfChanged( $hash, 'wifi_ssid',       $hash->{data}{wifi_ssid},                                           1 );
-                readingsBulkUpdateIfChanged( $hash, 'ip_addr',         $hash->{data}{ip_addr},                                             1 );
-                readingsBulkUpdateIfChanged( $hash, 'wifi_mac',        $hash->{data}{wifi_mac},                                            1 );
-                readingsBulkUpdateIfChanged( $hash, 'main_hw_version', $hash->{data}{main_hw_version},                                     1 );
-                readingsBulkUpdateIfChanged( $hash, 'main_sw_version', $hash->{data}{main_sw_version},                                     1 );
-                readingsBulkUpdateIfChanged( $hash, 'main_sw_time',    FmtDateTime( $hash->{data}{main_sw_time} ),                         1 );
-                readingsBulkUpdateIfChanged( $hash, 'sec_sw_version',  $hash->{data}{sec_sw_version},                                      1 );
-                readingsBulkUpdateIfChanged( $hash, 'sec_sw_time',     FmtDateTime( $hash->{data}{sec_sw_time} ),                          1 );
-                readingsBulkUpdateIfChanged( $hash, 'sec_hw_version',  $hash->{data}{sec_hw_version},                                      1 );
-                readingsBulkUpdateIfChanged( $hash, 'event_num',       $hash->{data}{event_num},                                           1 );
-                readingsBulkUpdateIfChanged( $hash, 'create_time',     FmtDateTime( $hash->{data}{create_time} ),                          1 );
-                readingsBulkUpdateIfChanged( $hash, 'update_time',     FmtDateTime( $hash->{data}{update_time} ),                          1 );
-                readingsBulkUpdateIfChanged( $hash, 'state',           $hash->{data}{status},                                              1 );
-                readingsBulkUpdateIfChanged( $hash, 'p2p_did',         $hash->{data}{p2p_did},                                             1 );
-                readingsBulkUpdateIfChanged( $hash, 'ip_addr',         $hash->{data}{ip_addr},                                             1 );
-                readingsBulkUpdateIfChanged( $hash, 'ip_addr_local',   $hash->{data}{params}{1176}{param_value},                           1 );
-                readingsBulkUpdateIfChanged( $hash, 'guard_mode',      GuardMode_Num2String->{ $hash->{data}{params}{1224}{param_value} }, 1 );
+                readingsBulkUpdateIfChanged( $hash, 'station_id',    $hash->{data}{station_id},                    1 ) if defined $hash->{data}{station_id};
+                readingsBulkUpdateIfChanged( $hash, 'device_type',   $DeviceType{ $hash->{data}{device_type} }[1], 1 ) if defined $hash->{data}{device_type};
+                readingsBulkUpdateIfChanged( $hash, 'station_model', $hash->{data}{station_model},                 1 ) if defined $hash->{data}{station_model};
+                readingsBulkUpdateIfChanged( $hash, 'time_zone',     $hash->{data}{time_zone},                     1 ) if defined $hash->{data}{time_zone};
+                readingsBulkUpdateIfChanged( $hash, 'wifi_ssid',     $hash->{data}{wifi_ssid},                     1 ) if defined $hash->{data}{wifi_ssid};
+                readingsBulkUpdateIfChanged( $hash, 'ip_addr',       $hash->{data}{ip_addr},                       1 ) if defined $hash->{data}{ip_addr};
+                readingsBulkUpdateIfChanged( $hash, 'wifi_mac',      $hash->{data}{wifi_mac},                      1 ) if defined $hash->{data}{wifi_mac};
+                readingsBulkUpdateIfChanged( $hash, 'main_hw_version', $hash->{data}{main_hw_version}, 1 ) if defined $hash->{data}{main_hw_version};
+                readingsBulkUpdateIfChanged( $hash, 'main_sw_version', $hash->{data}{main_sw_version}, 1 ) if defined $hash->{data}{main_sw_version};
+                readingsBulkUpdateIfChanged( $hash, 'main_sw_time',    FmtDateTime( $hash->{data}{main_sw_time} ), 1 ) if defined $hash->{data}{main_sw_time};
+                readingsBulkUpdateIfChanged( $hash, 'sec_sw_version',  $hash->{data}{sec_sw_version},              1 ) if defined $hash->{data}{sec_sw_version};
+                readingsBulkUpdateIfChanged( $hash, 'sec_sw_time',     FmtDateTime( $hash->{data}{sec_sw_time} ),  1 ) if defined $hash->{data}{sec_sw_time};
+                readingsBulkUpdateIfChanged( $hash, 'sec_hw_version',  $hash->{data}{sec_hw_version},              1 ) if defined $hash->{data}{sec_hw_version};
+                readingsBulkUpdateIfChanged( $hash, 'event_num',       $hash->{data}{event_num},                   1 ) if defined $hash->{data}{event_num};
+                readingsBulkUpdateIfChanged( $hash, 'create_time',     FmtDateTime( $hash->{data}{create_time} ),  1 ) if defined $hash->{data}{create_time};
+                readingsBulkUpdateIfChanged( $hash, 'update_time',     FmtDateTime( $hash->{data}{update_time} ),  1 ) if defined $hash->{data}{update_time};
+                readingsBulkUpdateIfChanged( $hash, 'state',           $hash->{data}{status},                      1 ) if defined $hash->{data}{status};
+                readingsBulkUpdateIfChanged( $hash, 'p2p_did',         $hash->{data}{p2p_did},                     1 ) if defined $hash->{data}{p2p_did};
+                readingsBulkUpdateIfChanged( $hash, 'ip_addr',         $hash->{data}{ip_addr},                     1 ) if defined $hash->{data}{ip_addr};
+                readingsBulkUpdateIfChanged( $hash, 'ip_addr_local',   $hash->{data}{params}{1176}{param_value},   1 )
+                  if defined $hash->{data}{params}{1176}{param_value};
+
+	  			my $GuardModeName = GuardMode_Num2String->{$hash->{data}{params}{1224}{param_value}};
+	  			$GuardModeName = $hash->{data}{params}{1224}{param_value} if (undef($GuardModeName));
+
+                readingsBulkUpdateIfChanged( $hash, 'guard_mode', $GuardModeName, 1 )
+                  if defined $hash->{data}{params}{1224}{param_value};
                 readingsEndUpdate( $hash, 1 );
             }
 
@@ -304,8 +324,19 @@ sub eufyStation_Parse ($$) {
             return $hash->{NAME};
         }
         elsif ( $cmd eq 'SET_P2P_STATE' ) {
+			Log3 $name, 3, "eufyStation $name (Parse) - P2P-State is set to ".$args[0];
             readingsBeginUpdate($hash);
             readingsBulkUpdateIfChanged( $hash, 'p2p_state', $args[0], 1 );
+            readingsEndUpdate( $hash, 1 );
+            return $hash->{NAME};
+        }
+        elsif ( $cmd eq 'SET_GUARDMODE' ) {
+            $hash->{data}{params}{1224}{param_value} = $args[0];
+			my $GuardModeName = GuardMode_Num2String->{$args[0]};
+			$GuardModeName = $args[0] if ($GuardModeName eq "");
+			Log3 $name, 3, "eufyStation $name (Parse) - GuardMode is set to ".$GuardModeName;
+            readingsBeginUpdate($hash);
+            readingsBulkUpdate( $hash, 'guard_mode', $GuardModeName, 1 );
             readingsEndUpdate( $hash, 1 );
 			return $hash->{NAME};
         }
