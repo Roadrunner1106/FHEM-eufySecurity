@@ -27,6 +27,7 @@ sub eufyStation_Initialize($) {
     $hash->{DeleteFn} = "eufyStation_Delete";
     $hash->{SetFn}    = "eufyStation_Set";
     $hash->{GetFn}    = "eufyStation_Get";
+    $hash->{AttrFn}    = "eufyStation_Attr";
 
     #$hash->{AttrFn}   = "eufyStation_Attr";
 
@@ -41,7 +42,7 @@ sub eufyStation_Initialize($) {
     # Funktionen für zweistufiges Modulkonzept
     $hash->{ParseFn}       = "eufyStation_Parse";
     $hash->{FingerprintFn} = "eufyStation_Fingerprint";
-    $hash->{Match}         = "^S:(0|31):.*";
+    $hash->{Match}         = "^S:(0|30|31):.*";
 
     # autocreate Option setzen
     $hash->{noAutocreatedFilelog} = 1;
@@ -61,6 +62,9 @@ sub eufyStation_Define($$) {
 
     # Adresse rückwärts dem Hash zuordnen (für ParseFn)
     $modules{eufyStation}{defptr}{$station_sn} = $hash;
+
+	# Default GuardModes im Hash ablegen
+	$hash->{GuardMode} = GuardMode_Num2String;
 
     # Verbindung für IOWrite() zum physischen Geräte (eufySecurity)
     AssignIoPort($hash);
@@ -112,7 +116,7 @@ sub eufyStation_Set($@) {
             $station_ip = $hash->{data}{params}{1176}{param_value};
             Log3 $name, 3, "eufyStation $name (set) -  Station device type $device_type";
         }
-        elsif ( $device_type == 31 ) {
+        elsif ( $device_type == 31 || $device_type == 31) {
             $station_ip = $hash->{data}{ip_addr};
             Log3 $name, 3, "eufyStation $name (set) -  Station device type $device_type";
         }
@@ -144,13 +148,17 @@ sub eufyStation_Set($@) {
         #}
     }
     elsif ( $cmd eq 'GuardMode' ) {
-        $message .= ":GUARD_MODE:" . $args[0];
         Log3 $name, 3, "eufyStation $name (set) -  set station to GuardMode " . $args[0];
+		
+		# get GuardMode-Key from GuardMode-String
+		my ($key) = grep{ $hash->{GuardMode}{$_} eq $args[0] } keys %{$hash->{GuardMode}};
+        $message .= ":GUARD_MODE:" . $key;
+
         $ret = IOWrite( $hash, $message );
         Log3 $name, 3, "eufyStation $name (set) - IOWrite return: $ret";
     }
     else {
-        return "Unknown argument $cmd, choose one of connect:noArg disconnect:noArg GuardMode:Away,Home,Schedule,Geofencing,Disarmed";
+        return "Unknown argument $cmd, choose one of connect:noArg disconnect:noArg GuardMode:".getGuardModes($hash);
     }
 }
 
@@ -182,6 +190,37 @@ sub eufyStation_Get($$@) {
     }
 
     return undef;
+}
+
+sub eufyStation_Attr($$$$) {
+	my ( $cmd, $name, $attrName, $attrValue ) = @_;
+    my $hash   = $defs{$name};
+	
+  	# $cmd  - Vorgangsart - kann die Werte "del" (löschen) oder "set" (setzen) annehmen
+	# $name - Gerätename
+	# $attrName/$attrValue sind Attribut-Name und Attribut-Wert
+    
+	if ($cmd eq "set") {
+		if ($attrName eq "userGuardModes") {
+			# attrVal = "mode_num:mode_string;mode_num:mode_string;..."
+			my @userModes = split(/;/,$attrValue);
+
+			for (my $i=0; $i<@userModes; $i++) {
+			    my ($n,$s)=split(/:/,$userModes[$i]);
+			    $hash->{GuardMode}{$n}=$s;
+			}
+		}
+	} elsif ($cmd eq "del") {
+		if ($attrName eq "userGuardModes") {
+			my @userModes = split(/;/,$attrValue);
+
+			for (my $i=0; $i<@userModes; $i++) {
+			    my ($n,$s)=split(/:/,$userModes[$i]);
+			    delete $hash->{GuardMode}{$n};
+			}			
+		}
+	}
+	return undef;
 }
 
 sub eufyStation_Parse ($$) {
@@ -312,9 +351,9 @@ sub eufyStation_Parse ($$) {
                 readingsBulkUpdateIfChanged( $hash, 'ip_addr_local',   $hash->{data}{params}{1176}{param_value},   1 )
                   if defined $hash->{data}{params}{1176}{param_value};
 
-	  			my $GuardModeName = GuardMode_Num2String->{$hash->{data}{params}{1224}{param_value}};
+	  			my $GuardModeName = $hash->{GuardMode}{$hash->{data}{params}{1224}{param_value}};
 	  			$GuardModeName = $hash->{data}{params}{1224}{param_value} if (undef($GuardModeName));
-
+				Log3 $name, 3, "eufyStation $name (Parse) - guardmodename: $GuardModeName";
                 readingsBulkUpdateIfChanged( $hash, 'guard_mode', $GuardModeName, 1 )
                   if defined $hash->{data}{params}{1224}{param_value};
                 readingsEndUpdate( $hash, 1 );
@@ -332,7 +371,7 @@ sub eufyStation_Parse ($$) {
         }
         elsif ( $cmd eq 'SET_GUARDMODE' ) {
             $hash->{data}{params}{1224}{param_value} = $args[0];
-			my $GuardModeName = GuardMode_Num2String->{$args[0]};
+			my $GuardModeName = $hash->{GuardMode}{$args[0]};
 			$GuardModeName = $args[0] if ($GuardModeName eq "");
 			Log3 $name, 3, "eufyStation $name (Parse) - GuardMode is set to ".$GuardModeName;
             readingsBeginUpdate($hash);
@@ -366,6 +405,19 @@ sub eufyStation_Fingerprint($$) {
 # Interne Hilfs-Funktionen
 ##############################################################################
 
+# Returns a comma-separated list of all GuardModes
+sub getGuardModes($) {
+    my $hash = shift;
+    my $gm;
+    
+    foreach $v (values %{$hash->{GuardMode}}) {
+        $gm .= "," if $gm ne '';
+        $gm .= $v;
+    }
+    
+    return $gm;
+}
+
 # Eval-Rückgabewert für erfolgreiches
 # Laden des Moduls
 
@@ -379,12 +431,18 @@ sub eufyStation_Fingerprint($$) {
 =item summary_DE Kurzbeschreibung in Deutsch was MYMODULE steuert/unterstützt
 
 =begin html
+<a name="eufyStation"></a>
+<h3>eufyStation</h3>
+
  Englische Commandref in HTML
 =end html
 
 =begin html_DE
+<a name="eufyStation"></a>
+<h3>eufyStation</h3>
+
  Deutsche Commandref in HTML
-=end html
+=end html_DE
 
 # Ende der Commandref
 =cut
