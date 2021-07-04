@@ -23,6 +23,7 @@ my %DeviceType = (
     9  => [ 'CAMERA2',          'eufyCam 2' ],
     10 => [ 'MOTION_SENSOR',    'Motion Sesor' ],
     11 => [ 'KEYPAD',           'Keypad' ],
+	14 => [ 'CAMERA2PRO',		'eufyCam 2 Pro'],
     30 => [ 'INDOOR_CAMERA',    'Indoor Camera 2k' ],           # Cam & Station in one device
     31 => [ 'INDOOR_PT_CAMERA', 'Indoor Pan & Tilt Camera' ],
     50 => [ 'LOCK_BASIC',       'Lock Basic' ],
@@ -54,7 +55,7 @@ sub eufyCamera_Initialize($) {
     # Funktionen für zweistufiges Modulkonzept
     $hash->{ParseFn}       = "eufyCamera_Parse";
     $hash->{FingerprintFn} = "eufyCamera_Fingerprint";
-    $hash->{Match}         = "^C:(1|7|8|9|30|31rel):.*";
+    $hash->{Match}         = "^C:(1|7|8|9|11|14|30|31):.*";
 
     # autocreate Option setzen
     $hash->{noAutocreatedFilelog} = 1;
@@ -88,7 +89,7 @@ sub eufyCamera_Define($$) {
     CommandAttr( undef, $name . ' icon it_camera' )    if ( AttrVal( $name, 'icon', 'none' ) eq 'none' );
 
     # battery reading only for cams with accu (camera, E, 2C,2)
-    if ( $device_type ~~ [ 1, 4, 8, 9 ] ) {
+    if ( $device_type ~~ [ 1, 4, 8, 9, 14 ] ) {
         CommandAttr( undef, $name . ' userReadings battery { ReadingsVal($NAME,"battery_level",0) > 10 ? "ok" : "low"}' )
           if ( AttrVal( $name, 'userReadings', 'none' ) eq 'none' );
     }
@@ -261,6 +262,7 @@ sub eufyCamera_Parse ($$) {
             }
 
             # Rückgabe des Gerätenamens, für welches die Nachricht bestimmt ist.
+			Log3 $name, 3, "eufyCamera $name (Parse) - UPDATE Device $hash->{NAME} done"; 
             return $hash->{NAME};
         }
         else {
@@ -298,17 +300,22 @@ sub eufyCamera_Fingerprint($$) {
 # Beginn der Commandref
 
 =pod
-=item [helper|device|command]
+=item device
 =item summary Kurzbeschreibung in Englisch was MYMODULE steuert/unterstützt
 =item summary_DE Kurzbeschreibung in Deutsch was MYMODULE steuert/unterstützt
 
 =begin html
+<a name="eufyCamera"></a>
+<h3>eufyCamera</h3>
  Englische Commandref in HTML
 =end html
 
 =begin html_DE
+<a name="eufyCamera"></a>
+<h3>eufyCamera</h3>
+
  Deutsche Commandref in HTML
-=end html
+=end html_DE
 
 # Ende der Commandref
 =cut

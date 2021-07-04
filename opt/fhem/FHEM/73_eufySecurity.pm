@@ -25,6 +25,7 @@ my %DeviceType = (
     9  => [ 'CAMERA2',          'eufyCam 2' ],
     10 => [ 'MOTION_SENSOR',    'Motion Sesor' ],
     11 => [ 'KEYPAD',           'Keypad' ],
+	14 => [ 'CAMERA2PRO',		'eufyCam 2 Pro'],
     30 => [ 'INDOOR_CAMERA',    'Indoor Cemera' ],
     31 => [ 'INDOOR_PT_CAMERA', 'Indoor Pan & Tilt Camera' ],
     50 => [ 'LOCK_BASIC',       'Lock Basic' ],
@@ -440,8 +441,8 @@ sub eufySecurity_Initialize($) {
     # <cmd>.        => Kommando an logisches Modul z.B. UPDATE
     # <args>.       => optional weitere Argumente duch einen Doppelpunkt getrennt (abhängig von <cmd>)
     $hash->{MatchList} = {
-        "1:eufyCamera"  => "^C:(1|7|8|9|30|31):.*",
-        "2:eufyStation" => "^S:(0|31):.*"
+        "1:eufyCamera"  => "^C:(1|7|8|9|14|30|31):.*",
+        "2:eufyStation" => "^S:(0|30|31):.*"
     };
 
     $hash->{AttrList} = 'mail ' . 'timeout ' . 'eufySecurity-API-URL' . $readingFnAttributes;
@@ -661,6 +662,7 @@ sub eufySecurity_Read($) {
         delete $selectlist{ $shash->{NAME} };
         $sock->close();
         $shash->{state} = 'disconnect';
+        delete $shash->{seenSeqNo};
 
         my ( $device_type, $station_sn ) = split( /_/, $shash->{NAME} );
         Dispatch( $hash, "S:$device_type:$station_sn:SET_P2P_STATE:disconnect" );
@@ -751,29 +753,9 @@ sub eufySecurity_Write ($$) {
         Dispatch( $hash, "S:$device_type:$sn:SET_P2P_STATE:disconnect" );
     }
     elsif ( $cmd eq "GUARD_MODE" ) {
-        my $guard_mode;
-        if ( $args[0] eq 'Away' ) {
-            $guard_mode = 0;
-        }
-        elsif ( $args[0] eq 'Home' ) {
-            $guard_mode = 1;
-        }
-        elsif ( $args[0] eq 'Schedule' ) {
-            $guard_mode = 2;
-        }
-        elsif ( $args[0] eq 'Geofencing' ) {
-            $guard_mode = 47;
-        }
-        elsif ( $args[0] eq 'Disarmed' ) {
-            $guard_mode = 63;
-        }
-        else {
-            Log3 $name, 3, "eufySecurity $name (Set) - unknown GuardMode $guard_mode";
-            return "unknown GuardMode $guard_mode";
-        }
         Log3 $name, 3, "eufySecurity $name (Write) - set Guard Mode to " . $args[0] . "($guard_mode)";
 
-        sendCommandWithInt( $hash, $sn, 1224, $guard_mode );
+        sendCommandWithInt( $hash, $sn, 1224, $args[0] );
     }
     else {
         return "Unknown cmd $cmd";
@@ -930,7 +912,8 @@ sub getHubsCB($$$) {
         };
 
         if ( $json->{code} == 0 ) {
-            for ( $i = 0 ; $i < @{ $json->{data} } ; $i++ ) {
+            Log3 $name, 3, "eufySecurity $name (Callback getHubs) - " . @{ $json->{data} } . " Hubs in get_hub_list";
+            for ( my $i = 0 ; $i < @{ $json->{data} } ; $i++ ) {
                 Log3 $name, 3, "eufySecurity $name (Callback getHubs) - [$i] json: " . $json->{data}[$i];
 
                 # Update Daten über (io_)hash an Station übergeben
@@ -1007,7 +990,7 @@ sub getDskKey($$) {
     my ( $err, $data ) = HttpUtils_BlockingGet($param);
 
     if ( $err eq "" ) {    # kein Fehler aufgetreten
-        Log3 $name, 3, "eufySecurity (getDskKey) - data: $data";
+        Log3 $name, 3, "eufySecurity $name (getDskKey) - data: $data";
 
         ### Check if json can be parsed into hash
         eval {
@@ -1015,7 +998,7 @@ sub getDskKey($$) {
             1;
         } or do {
             ### Log Entry for debugging purposes
-            Log3 $name, 3, "eufySecurity (getDskKey) - Error decode json";
+            Log3 $name, 3, "eufySecurity $name (getDskKey) - Error decode json";
             return "eufySecurity (getDskKey) - Error decode json";
         };
 
@@ -1072,28 +1055,30 @@ sub getDevicesCB($$$) {
             1;
         } or do {
             ### Log Entry for debugging purposes
-            Log3 $name, 3, "eufySecurity (Callback getDevicess) - Error decode json";
+            Log3 $name, 3, "eufySecurity $name (Callback getDevicess) - Error decode json";
             return "eufySecurity (getDevicesCN) - Error decode json";
         };
 
         if ( $json->{code} == 0 ) {
-            for ( $i = 0 ; $i < @{ $json->{data} } ; $i++ ) {
+            Log3 $name, 3, "eufySecurity $name (Callback getDevicess) - " . @{ $json->{data} } . " Devices in get_dev_list";
+            for ( my $i = 0 ; $i < @{ $json->{data} } ; $i++ ) {
                 Log3 $name, 3, "eufySecurity (Callback getDevices) - camera: " . $json->{data}[$i]{device_sn};
 
                 # Update Daten über (io_)hash an Kamera übergeben
                 $hash->{helper}{UPDATE} = $json->{data}[$i];
                 my $found =
                   Dispatch( $hash, "C:" . $json->{data}[$i]{device_type} . ":" . $json->{data}[$i]{device_sn} . ":UPDATE" );
-                Log3 $name, 3, "eufySecurity (getDevicesCB) - found: $found";
+                Log3 $name, 3, "eufySecurity $name (getDevicesCB) - found: $found";
+                Log3 $name, 3, "eufySecurity $name (getDevicesCB) - found: ".Dumper($found);
             }
         }
         else {
-            Log3 $name, 3, "eufySecurity (getDevicesCB) - eufy Security Fehler code: " . $json->{code} . " msg: " . $json->{msg};
+            Log3 $name, 3, "eufySecurity $name (getDevicesCB) - eufy Security Fehler code: " . $json->{code} . " msg: " . $json->{msg};
         }
 
     }
     else {
-        Log3 $name, 3, "eufySecurity (getDevicesCB) - HttpUtils Fehler $err";
+        Log3 $name, 3, "eufySecurity $name (getDevicesCB) - HttpUtils Fehler $err";
     }
 }
 
@@ -1335,24 +1320,25 @@ sub parseDataControl($$$$) {
 sub handleDataControl($$$$) {
     my ( $shash, $hash, $commandId, $message ) = @_;
     my $name = $hash->{NAME};
-	my ($device_type, $station_sn) = split(/_/,$shash->{NAME});
+    my ( $device_type, $station_sn ) = split( /_/, $shash->{NAME} );
 
     if ( $commandId eq CommandType2Num->{CMD_GET_ALARM_MODE} ) {
         my $guardMode = unpack( 'C', $message );
         Log3 $name, 3, "eufySecurity (handleDataControl) GuardMode is set to $guardMode";
-		Dispatch($hash, "S:$device_type:$station_sn:SET_GUARDMODE:$guardMode");
+        Dispatch( $hash, "S:$device_type:$station_sn:SET_GUARDMODE:$guardMode" );
     }
     elsif ( $commandId eq CommandType2Num->{CMD_CAMERA_INFO} ) {
         Log3 $name, 3, "eufySecurity (handleDataControl) Camera info: " . unpack( 'A*', $message );
-		 $json = decode_json( encode_utf8($message) );
-		 for ( $i = 0 ; $i < @{ $json->{params} } ; $i++ ) {
-			 if ($json->{params}[$i]{param_type} == 1151) {
-				 my $guardMode = $json->{params}[$i]{param_value};
-			 	Dispatch($hash, "S:$device_type:$station_sn:SET_GUARDMODE:$guardMode");
-			 }
-		 }
-    } else {
-	    Log3 $name, 3, "eufySecurity (handleDataControl) Untreated message commandId: $commandId message [" . unpack( 'H*', $message ) . "]";
+        $json = decode_json( encode_utf8($message) );
+        for ( $i = 0 ; $i < @{ $json->{params} } ; $i++ ) {
+            if ( $json->{params}[$i]{param_type} == 1151 ) {
+                my $guardMode = $json->{params}[$i]{param_value};
+                Dispatch( $hash, "S:$device_type:$station_sn:SET_GUARDMODE:$guardMode" );
+            }
+        }
+    }
+    else {
+        Log3 $name, 3, "eufySecurity (handleDataControl) Untreated message commandId: $commandId message [" . unpack( 'H*', $message ) . "]";
     }
 }
 
@@ -1411,17 +1397,121 @@ sub dataType2Name($) {
 # Beginn der Commandref
 
 =pod
-=item [helper|device|command]
-=item summary Kurzbeschreibung in Englisch was MYMODULE steuert/unterstützt
-=item summary_DE Kurzbeschreibung in Deutsch was MYMODULE steuert/unterstützt
+=item device
+=item General module For eufy Security devices
+=item Generelles Modul Für eufy Security Geräte
 
 =begin html
- Englische Commandref in HTML
+<a name="eufySecurity"></a>
+<h3>eufySecurity</h3>
+
+<p>This is the central module. It establishes a connection via the web API to the eufy Security Server to retrieve data about the known devices.</p>.
+<p>In addition, the module establishes a P2P connection to each known station.</p>
+<h4>DEFINE</h4>
+<pre><code>define &lt;name&gt; eufySecurity
+</code></pre>
+<h4>SET</h4>
+<ul>
+<li>connect<br>
+Establishes a connection via the web API</li>.
+<li>password<br>
+This can be used to set the password, which is required for logging in via the web API.
+The password is stored in FHEM permanently and encrypted.</li>.
+<li>del_password<br>
+Currently only implemented for debugging. Should not be used! Dropped in the final version of the module.</li>
+<li>GuardMode<br>
+Sets the GuardMode for all known stations. Currently still without function!</li>
+
+</ul>
+<h4>GET</h4>
+<ul>
+<li>Hubs<br>
+Gets the list of hubs (stations) via the web API and passes the information to the station devices. If the station does not exist yet, this is created by FHEM via Auto-Create. The data of the station will then be deposited but first at the next call to the device!</li>.
+<li>Devices<br>
+Retrieves the list of devices (cameras) via the web API and passes the information to the camera devices. If the camera does not yet exist, this is created by FHEM via Auto-Create. The data of the camera will then be stored but first at the next call to the device!</li>
+<li>History<br>
+Retrieves the history via the web API. Currently still without function! Only the returned JSON string is logged in the logfile.</li>
+<li>DEBUG_DskKey<br>
+Currently implemented only for debugging. Should not be used! Will be omitted in the final version of the module.</li>
+
+</ul>
+<h4>ATTRIBUTES</h4>
+<ul>
+<li>mail<br>
+Contains the email used for logging in via the web API.</li>.
+
+</ul>
+<h4>READINGS</h4>
+<ul>
+<li>devices<br>
+Number of known/defined devices. Currently no function yet and always 0.</li>
+<li>eufySecurity API URL<br>
+URL that is used for the web API. Can currently only be changed in the module's code.</li>
+<li>token<br>
+The token passed when logging in via the web API and used for further calls via the web API.</li>.
+<li>token_expires<br>
+Timestamp at which the token expires and a reconnect is required.</li>.
+<li>user_id<br>
+User ID of the user logged in via dei Web API.</li>
+
+</ul>
 =end html
 
 =begin html_DE
- Deutsche Commandref in HTML
-=end html
+<a name="eufySecurity"></a>
+<h3>eufySecurity</h3>
+
+<p>Das ist das zentrale Modul. Es baut eine Verbindung über die Web-API zum eufy Security Server auf, um dort Daten zu den bekannten Geräten abzufragen.</p>
+<p>Außerdem stellt das Modul eine P2P-Verbindung zu jeder bekannte Station her.</p>
+<h4>DEFINE</h4>
+<pre><code>define &lt;name&gt; eufySecurity
+</code></pre>
+<h4>SET</h4>
+<ul>
+<li>connect<br>
+Baut eine Verbindung über die Web-API auf.</li>
+<li>password<br>
+Damit kann das Passwort gesetzt werden, was für die Anmeldung über die Web-API benötigt wird.
+Das Passwort wird in FHEM dauerhaft und verschlüsselt gespeichert.</li>
+<li>del_password<br>
+Aktuell nur zum debugging implementiert. Sollte nicht genutzt werden! Entfällt in der finalen Version des Moduls.</li>
+<li>GuardMode<br>
+Setzt den GuardMode für alle bekannten Stations. Aktuell noch ohne Funktion!</li>
+
+</ul>
+<h4>GET</h4>
+<ul>
+<li>Hubs<br>
+Ruft über die Web-API die Liste der Hubs (Stations) ab und reicht die Information an die Station-Geräte weiter. Existiert die Station noch nicht, wird diese per Auto-Create von FHEM angelegt. Die Daten der Station werden dann aber ersten beim nächsten Aufruf am Gerät hinterlegt!</li>
+<li>Devices<br>
+Ruft über die Web-API die Liste der Devices (Kameras) ab und reicht die Information an die Kamera-Geräte weiter. Existiert die Kamera noch nicht, wird diese per Auto-Create von FHEM angelegt. Die Daten der Kamera werden dann aber ersten beim nächsten Aufruf am Gerät hinterlegt!</li>
+<li>History<br>
+Ruft die Historie über die Web-API ab. Aktuell noch ohne Funktion! Es wird nur der zurückgelieferte JSON-String im Logfile protokolliert.</li>
+<li>DEBUG_DskKey<br>
+Aktuell nur zum debugging implementiert. Sollte nicht genutzt werden! Entfällt in der finalen Version des Moduls.</li>
+
+</ul>
+<h4>ATTRIBUTES</h4>
+<ul>
+<li>mail<br>
+Enthält die E-Mail, die für die Anmeldung über die Web-API genutzt wird.</li>
+
+</ul>
+<h4>READINGS</h4>
+<ul>
+<li>devices<br>
+Anzahl der bekannten/definierten Devices. Z.Z. noch keine Funktion und immer 0.</li>
+<li>eufySecurity-API-URL<br>
+URL die für die Web-API genutzt wird. Kann aktuell nur im Code des Moduls geändert werden.</li>
+<li>token<br>
+Der Token, der bei der Anmeldung über die Web-API übergeben wurde und der für weitere Aufrufe übere die Web-API genutzt wird.</li>
+<li>token_expires
+Timestamp an den der Token abläuft und ein Reconnect erforderlich ist.</li>
+<li>user_id<br>
+User-ID des über dei Web-API angemeldeten Users.</li>
+
+</ul>
+=end html_DE
 
 # Ende der Commandref
 =cut
