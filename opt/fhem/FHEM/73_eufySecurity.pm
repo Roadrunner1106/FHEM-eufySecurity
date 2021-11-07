@@ -14,23 +14,38 @@ use Data::Dumper qw(Dumper);
 
 # eufy Security Device Typen
 my %DeviceType = (
-    0  => [ 'STATION',          'Home Base 2' ],
-    1  => [ 'CAMERA',           'Camera' ],
-    2  => [ 'SENSOR',           'Sensor' ],
-    3  => [ 'FLOODLIGHT',       'Floodlight' ],
-    4  => [ 'CAMERA_E',         'eufyCam E' ],
-    5  => [ 'DOORBELL',         'Doorbell' ],
-    7  => [ 'BATTERY_DOORBELL', 'Battery Doorbell' ],
-    8  => [ 'CAMERA2C',         'eufyCam 2C' ],
-    9  => [ 'CAMERA2',          'eufyCam 2' ],
-    10 => [ 'MOTION_SENSOR',    'Motion Sesor' ],
-    11 => [ 'KEYPAD',           'Keypad' ],
-	14 => [ 'CAMERA2PRO',		'eufyCam 2 Pro'],
-    30 => [ 'INDOOR_CAMERA',    'Indoor Cemera' ],
-    31 => [ 'INDOOR_PT_CAMERA', 'Indoor Pan & Tilt Camera' ],
-    50 => [ 'LOCK_BASIC',       'Lock Basic' ],
-    51 => [ 'LOCK_ADVANCED',    'Lock Advanced' ],
-    52 => [ 'LOCK_SIMPLE',      'Lock Simple' ]
+    0  => [ 'STATION',                              'Home Base 2' ],
+    1  => [ 'CAMERA',                               'Camera' ],
+    2  => [ 'SENSOR',                               'Sensor' ],
+    3  => [ 'FLOODLIGHT',                           'Floodlight' ],
+    4  => [ 'CAMERA_E',                             'eufyCam E' ],
+    5  => [ 'DOORBELL',                             'Doorbell' ],
+    7  => [ 'BATTERY_DOORBELL',                     'Battery Doorbell' ],
+    8  => [ 'CAMERA2C',                             'eufyCam 2C' ],
+    9  => [ 'CAMERA2',                              'eufyCam 2' ],
+    10 => [ 'MOTION_SENSOR',                        'Motion Sesor' ],
+    11 => [ 'KEYPAD',                               'Keypad' ],
+    14 => [ 'CAMERA2PRO',                           'eufyCam 2 Pro' ],
+    15 => [ 'CAMERA2C_PRO',                         'Camera 2C Pro' ],
+    16 => [ 'BATTERY_DOORBELL_2',                   'Battery Doorbell 2' ],
+    30 => [ 'INDOOR_CAMERA',                        'Indoor Camera 2k' ],                       # Cam & Station in one device
+    31 => [ 'INDOOR_PT_CAMERA',                     'Indoor Pan & Tilt Camera' ],
+    32 => [ 'SOLO_CAMERA',                          'Solo Camera' ],
+    33 => [ 'SOLO_CAMERA_PRO',                      'Solo Camera Pro' ],                        # Solo Cam E40???
+    34 => [ 'INDOOR_CAMERA_1080',                   'Indoor Camera 1000' ],
+    35 => [ 'INDOOR_PT_CAMERA_1080',                'Indoor Pan & Tilt Camera 1000' ],
+    37 => [ 'FLOODLIGHT_CAMERA_8422',               'Flootlight Camera 8422' ],
+    38 => [ 'FLOODLIGHT_CAMERA_8423',               'Flootlight Camera 8423' ],
+    39 => [ 'FLOODLIGHT_CAMERA_8424',               'Flootlight Camera 8424' ],
+    44 => [ 'INDOOR_OUTDOOR_CAMERA_1080P_NO_LIGHT', 'Indoor Outdoor Camera 1080P No Light' ],
+    45 => [ 'INDOOR_OUTDOOR_CAMERA_2K',             'Indoor Outdoor Camera 2K' ],
+    46 => [ 'INDOOR_OUTDOOR_CAMERA_1080P',          'Indoor Outdoor Camera 2K' ],
+    50 => [ 'LOCK_BASIC',                           'Lock Basic' ],
+    51 => [ 'LOCK_ADVANCED',                        'Lock Advanced' ],
+    52 => [ 'LOCK_SIMPLE',                          'Lock Simple' ],
+    60 => [ 'SOLO_CAMERA_SPOTLIGHT_1080',           'Solo Camera Spotlight 1080' ],
+    61 => [ 'SOLO_CAMERA_SPOTLIGHT_2K',             'Solo Camera Spotlight 2K' ],
+    62 => [ 'SOLO_CAMERA_SPOTLIGHT_SOLAR',          'Solo Camera Spotlight Solar' ]
 );
 
 # eufy Security Guard Mode
@@ -441,8 +456,8 @@ sub eufySecurity_Initialize($) {
     # <cmd>.        => Kommando an logisches Modul z.B. UPDATE
     # <args>.       => optional weitere Argumente duch einen Doppelpunkt getrennt (abhängig von <cmd>)
     $hash->{MatchList} = {
-        "1:eufyCamera"  => "^C:(1|7|8|9|14|30|31):.*",
-        "2:eufyStation" => "^S:(0|30|31):.*"
+        "1:eufyCamera"  => "^C:(1|7|8|9|14|30|31|33):.*",
+        "2:eufyStation" => "^S:(0|30|31|33):.*"
     };
 
     $hash->{AttrList} = 'mail ' . 'timeout ' . 'eufySecurity-API-URL' . $readingFnAttributes;
@@ -1069,7 +1084,7 @@ sub getDevicesCB($$$) {
                 my $found =
                   Dispatch( $hash, "C:" . $json->{data}[$i]{device_type} . ":" . $json->{data}[$i]{device_sn} . ":UPDATE" );
                 Log3 $name, 3, "eufySecurity $name (getDevicesCB) - found: $found";
-                Log3 $name, 3, "eufySecurity $name (getDevicesCB) - found: ".Dumper($found);
+                Log3 $name, 3, "eufySecurity $name (getDevicesCB) - found: " . Dumper($found);
             }
         }
         else {

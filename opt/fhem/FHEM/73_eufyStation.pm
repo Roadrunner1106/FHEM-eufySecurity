@@ -42,7 +42,7 @@ sub eufyStation_Initialize($) {
     # Funktionen für zweistufiges Modulkonzept
     $hash->{ParseFn}       = "eufyStation_Parse";
     $hash->{FingerprintFn} = "eufyStation_Fingerprint";
-    $hash->{Match}         = "^S:(0|30|31):.*";
+    $hash->{Match}         = "^S:(0|30|31|33):.*";
 
     # autocreate Option setzen
     $hash->{noAutocreatedFilelog} = 1;
@@ -116,7 +116,7 @@ sub eufyStation_Set($@) {
             $station_ip = $hash->{data}{params}{1176}{param_value};
             Log3 $name, 3, "eufyStation $name (set) -  Station device type $device_type";
         }
-        elsif ( $device_type == 31 || $device_type == 31) {
+        elsif ( $device_type == 30 || $device_type == 31 || $device_type == 33) {
             $station_ip = $hash->{data}{ip_addr};
             Log3 $name, 3, "eufyStation $name (set) -  Station device type $device_type";
         }

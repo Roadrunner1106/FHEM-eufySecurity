@@ -12,23 +12,38 @@ my $DEBUG_READINGS = 0;
 
 # eufy Security Device Typen
 my %DeviceType = (
-    0  => [ 'STATION',          'Home Base 2' ],
-    1  => [ 'CAMERA',           'Camera' ],
-    2  => [ 'SENSOR',           'Sensor' ],
-    3  => [ 'FLOODLIGHT',       'Floodlight' ],
-    4  => [ 'CAMERA_E',         'eufyCam E' ],
-    5  => [ 'DOORBELL',         'Doorbell' ],
-    7  => [ 'BATTERY_DOORBELL', 'Battery Doorbell' ],
-    8  => [ 'CAMERA2C',         'eufyCam 2C' ],
-    9  => [ 'CAMERA2',          'eufyCam 2' ],
-    10 => [ 'MOTION_SENSOR',    'Motion Sesor' ],
-    11 => [ 'KEYPAD',           'Keypad' ],
-	14 => [ 'CAMERA2PRO',		'eufyCam 2 Pro'],
-    30 => [ 'INDOOR_CAMERA',    'Indoor Camera 2k' ],           # Cam & Station in one device
-    31 => [ 'INDOOR_PT_CAMERA', 'Indoor Pan & Tilt Camera' ],
-    50 => [ 'LOCK_BASIC',       'Lock Basic' ],
-    51 => [ 'LOCK_ADVANCED',    'Lock Advanced' ],
-    52 => [ 'LOCK_SIMPLE',      'Lock Simple' ]
+    0  => [ 'STATION',                              'Home Base 2' ],
+    1  => [ 'CAMERA',                               'Camera' ],
+    2  => [ 'SENSOR',                               'Sensor' ],
+    3  => [ 'FLOODLIGHT',                           'Floodlight' ],
+    4  => [ 'CAMERA_E',                             'eufyCam E' ],
+    5  => [ 'DOORBELL',                             'Doorbell' ],
+    7  => [ 'BATTERY_DOORBELL',                     'Battery Doorbell' ],
+    8  => [ 'CAMERA2C',                             'eufyCam 2C' ],
+    9  => [ 'CAMERA2',                              'eufyCam 2' ],
+    10 => [ 'MOTION_SENSOR',                        'Motion Sesor' ],
+    11 => [ 'KEYPAD',                               'Keypad' ],
+    14 => [ 'CAMERA2PRO',                           'eufyCam 2 Pro' ],
+    15 => [ 'CAMERA2C_PRO',                         'Camera 2C Pro' ],
+    16 => [ 'BATTERY_DOORBELL_2',                   'Battery Doorbell 2' ],
+    30 => [ 'INDOOR_CAMERA',                        'Indoor Camera 2k' ],                       # Cam & Station in one device
+    31 => [ 'INDOOR_PT_CAMERA',                     'Indoor Pan & Tilt Camera' ],
+    32 => [ 'SOLO_CAMERA',                          'Solo Camera' ],
+    33 => [ 'SOLO_CAMERA_PRO',                      'Solo Camera Pro' ], # Solo Cam E40???
+    34 => [ 'INDOOR_CAMERA_1080',                   'Indoor Camera 1000' ],
+    35 => [ 'INDOOR_PT_CAMERA_1080',                'Indoor Pan & Tilt Camera 1000' ],
+    37 => [ 'FLOODLIGHT_CAMERA_8422',               'Flootlight Camera 8422' ],
+    38 => [ 'FLOODLIGHT_CAMERA_8423',               'Flootlight Camera 8423' ],
+    39 => [ 'FLOODLIGHT_CAMERA_8424',               'Flootlight Camera 8424' ],
+    44 => [ 'INDOOR_OUTDOOR_CAMERA_1080P_NO_LIGHT', 'Indoor Outdoor Camera 1080P No Light' ],
+    45 => [ 'INDOOR_OUTDOOR_CAMERA_2K',             'Indoor Outdoor Camera 2K' ],
+    46 => [ 'INDOOR_OUTDOOR_CAMERA_1080P',          'Indoor Outdoor Camera 2K' ],
+    50 => [ 'LOCK_BASIC',                           'Lock Basic' ],
+    51 => [ 'LOCK_ADVANCED',                        'Lock Advanced' ],
+    52 => [ 'LOCK_SIMPLE',                          'Lock Simple' ],
+    60 => [ 'SOLO_CAMERA_SPOTLIGHT_1080',           'Solo Camera Spotlight 1080' ],
+    61 => [ 'SOLO_CAMERA_SPOTLIGHT_2K',             'Solo Camera Spotlight 2K' ],
+    62 => [ 'SOLO_CAMERA_SPOTLIGHT_SOLAR',          'Solo Camera Spotlight Solar' ]
 );
 
 # eufyCamera Modulfunktionen
@@ -55,7 +70,7 @@ sub eufyCamera_Initialize($) {
     # Funktionen für zweistufiges Modulkonzept
     $hash->{ParseFn}       = "eufyCamera_Parse";
     $hash->{FingerprintFn} = "eufyCamera_Fingerprint";
-    $hash->{Match}         = "^C:(1|7|8|9|11|14|30|31):.*";
+    $hash->{Match}         = "^C:(1|7|8|9|11|14|30|31|33):.*";
 
     # autocreate Option setzen
     $hash->{noAutocreatedFilelog} = 1;
@@ -89,7 +104,7 @@ sub eufyCamera_Define($$) {
     CommandAttr( undef, $name . ' icon it_camera' )    if ( AttrVal( $name, 'icon', 'none' ) eq 'none' );
 
     # battery reading only for cams with accu (camera, E, 2C,2)
-    if ( $device_type ~~ [ 1, 4, 8, 9, 14 ] ) {
+    if ( $device_type ~~ [ 1, 4, 8, 9, 14, 33 ] ) {
         CommandAttr( undef, $name . ' userReadings battery { ReadingsVal($NAME,"battery_level",0) > 10 ? "ok" : "low"}' )
           if ( AttrVal( $name, 'userReadings', 'none' ) eq 'none' );
     }
@@ -262,7 +277,7 @@ sub eufyCamera_Parse ($$) {
             }
 
             # Rückgabe des Gerätenamens, für welches die Nachricht bestimmt ist.
-			Log3 $name, 3, "eufyCamera $name (Parse) - UPDATE Device $hash->{NAME} done"; 
+            Log3 $name, 3, "eufyCamera $name (Parse) - UPDATE Device $hash->{NAME} done";
             return $hash->{NAME};
         }
         else {
