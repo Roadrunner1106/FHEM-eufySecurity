@@ -221,8 +221,11 @@ Aktuell werden folgenden Kameras unterstützt.
 | 7           | Battery Doorbell         |
 | 8           | eufyCam 2C               |
 | 9           | eufyCam 2                |
+| 14           | eufyCam 2C                |
+| 15           | eufyCam 2 C Pro         |
 | 30          | Indoor Camera 2k         |
 | 31          | Indoor Pan & Tilt Camera |
+| 33          | Solo Cam Pro |
 
 #### DEFINE
 
@@ -237,7 +240,7 @@ define <name> eufyCamera <device_type> <serial_number>
   **eufyCamera_**<serial_number>.
   Beispiel: eufyStation_T8114P0220181D96 
 - <device_type>
-  Einer der oben genannten Werte (1,7,8,9,30,31)
+  Einer der oben genannten Werte (1,7,...)
 - <serial_number>
   Beispiel: T8114P0220181D96
 

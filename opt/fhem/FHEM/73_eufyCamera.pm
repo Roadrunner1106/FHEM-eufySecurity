@@ -70,7 +70,7 @@ sub eufyCamera_Initialize($) {
     # Funktionen für zweistufiges Modulkonzept
     $hash->{ParseFn}       = "eufyCamera_Parse";
     $hash->{FingerprintFn} = "eufyCamera_Fingerprint";
-    $hash->{Match}         = "^C:(1|7|8|9|11|14|30|31|33):.*";
+    $hash->{Match}         = "^C:(1|7|8|9|14|15|30|31|33):.*";
 
     # autocreate Option setzen
     $hash->{noAutocreatedFilelog} = 1;
@@ -104,7 +104,7 @@ sub eufyCamera_Define($$) {
     CommandAttr( undef, $name . ' icon it_camera' )    if ( AttrVal( $name, 'icon', 'none' ) eq 'none' );
 
     # battery reading only for cams with accu (camera, E, 2C,2)
-    if ( $device_type ~~ [ 1, 4, 8, 9, 14, 33 ] ) {
+    if ( $device_type ~~ [ 1, 4, 8, 9, 14, 15, 33 ] ) {
         CommandAttr( undef, $name . ' userReadings battery { ReadingsVal($NAME,"battery_level",0) > 10 ? "ok" : "low"}' )
           if ( AttrVal( $name, 'userReadings', 'none' ) eq 'none' );
     }
