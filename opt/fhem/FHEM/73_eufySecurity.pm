@@ -456,7 +456,7 @@ sub eufySecurity_Initialize($) {
     # <cmd>.        => Kommando an logisches Modul z.B. UPDATE
     # <args>.       => optional weitere Argumente duch einen Doppelpunkt getrennt (abhängig von <cmd>)
     $hash->{MatchList} = {
-        "1:eufyCamera"  => "^C:(1|7|8|9|14|30|31|33):.*",
+        "1:eufyCamera"  => "^C:(1|7|8|9|14|15|30|31|33):.*",
         "2:eufyStation" => "^S:(0|30|31|33):.*"
     };
 
